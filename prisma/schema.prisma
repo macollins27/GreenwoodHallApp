@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Booking {
+  id               String   @id @default(cuid())
+  bookingType      String   @default("EVENT")
+  eventDate        DateTime
+  startTime        DateTime
+  endTime          DateTime
+  dayType          String
+  hourlyRateCents  Int
+  eventHours       Int
+  extraSetupHours  Int      @default(0)
+  baseAmountCents  Int
+  extraSetupCents  Int
+  depositCents     Int
+  totalCents       Int
+  contactName      String
+  contactEmail     String
+  contactPhone     String?
+  eventType        String
+  guestCount       Int?
+  notes            String?
+  status           String   @default("PENDING")
+  contractAccepted Boolean  @default(false)
+  contractAcceptedAt DateTime?
+  contractSignerName String?
+  contractVersion    String?
+  contractText       String?
+  stripeCheckoutSessionId String?
+  stripePaymentStatus     String?
+  amountPaidCents         Int     @default(0)
+
+  // Setup preferences (optional, for EVENT bookings)
+  rectTablesRequested  Int?
+  roundTablesRequested Int?
+  chairsRequested      Int?
+  setupNotes           String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([eventDate])
+}
+
+model BlockedDate {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
