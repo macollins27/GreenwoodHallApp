@@ -45,47 +45,38 @@ export async function POST(
       );
     }
 
-    // For EVENT bookings, require signer name
-    if (booking.bookingType === "EVENT") {
-      if (!signerName || typeof signerName !== "string" || !signerName.trim()) {
-        return NextResponse.json(
-          { error: "Signer name is required for event bookings." },
-          { status: 400 }
-        );
-      }
-
-      const fullContractText = buildContractText();
-
-      // If contract already accepted, we allow updating the signer name
-      // but keep the original contract text and version
-      const updatedBooking = await prisma.booking.update({
-        where: { id },
-        data: {
-          contractAccepted: true,
-          contractAcceptedAt: new Date(),
-          contractSignerName: signerName.trim(),
-          // Only set version/text if not already set
-          contractVersion:
-            booking.contractVersion ?? CURRENT_CONTRACT_VERSION,
-          contractText: booking.contractText ?? fullContractText,
-        },
-      });
-
-      return NextResponse.json({ success: true }, { status: 200 });
+    // CRITICAL: Contract acceptance is ONLY for EVENT bookings
+    // Showings never use contracts
+    if (booking.bookingType !== "EVENT") {
+      return NextResponse.json(
+        { error: "Contract acceptance is only available for event bookings." },
+        { status: 400 }
+      );
     }
 
-    // For SHOWING bookings, contract acceptance is optional
-    // We still allow storing it if provided, but don't require it
-    if (signerName && signerName.trim()) {
-      await prisma.booking.update({
-        where: { id },
-        data: {
-          contractAccepted: true,
-          contractAcceptedAt: new Date(),
-          contractSignerName: signerName.trim(),
-        },
-      });
+    if (!signerName || typeof signerName !== "string" || !signerName.trim()) {
+      return NextResponse.json(
+        { error: "Signer name is required." },
+        { status: 400 }
+      );
     }
+
+    const fullContractText = buildContractText();
+
+    // If contract already accepted, we allow updating the signer name
+    // but keep the original contract text and version
+    const updatedBooking = await prisma.booking.update({
+      where: { id },
+      data: {
+        contractAccepted: true,
+        contractAcceptedAt: new Date(),
+        contractSignerName: signerName.trim(),
+        // Only set version/text if not already set
+        contractVersion:
+          booking.contractVersion ?? CURRENT_CONTRACT_VERSION,
+        contractText: booking.contractText ?? fullContractText,
+      },
+    });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

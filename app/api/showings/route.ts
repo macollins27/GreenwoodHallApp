@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { sendShowingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
 
 const prisma = new PrismaClient();
 
@@ -46,10 +47,7 @@ export async function POST(request: NextRequest) {
     const existingEvent = await prisma.booking.findFirst({
       where: {
         bookingType: "EVENT",
-        eventDate: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
+        eventDate: startOfDay,
         status: {
           not: "CANCELLED",
         },
@@ -66,10 +64,7 @@ export async function POST(request: NextRequest) {
     // Check if date is blocked
     const blockedDate = await prisma.blockedDate.findFirst({
       where: {
-        date: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
+        date: startOfDay,
       },
     });
 
@@ -108,14 +103,8 @@ export async function POST(request: NextRequest) {
     const existingShowing = await prisma.booking.findFirst({
       where: {
         bookingType: "SHOWING",
-        eventDate: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
-        startTime: {
-          gte: new Date(`${showingDate}T${showingTime}:00`),
-          lt: new Date(`${showingDate}T${showingTime}:01`),
-        },
+        eventDate: startOfDay,
+        startTime: new Date(`${showingDate}T${showingTime}:00`),
         status: {
           not: "CANCELLED",
         },
@@ -158,6 +147,16 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         status: "CONFIRMED",
       },
+    });
+
+    // Send confirmation emails (async, non-blocking)
+    // Errors are logged but won't break the booking flow
+    sendShowingConfirmationEmail(booking).catch((err) => {
+      console.error("Email sending failed, but booking was created:", err);
+    });
+    
+    sendAdminNotificationEmail(booking, "SHOWING").catch((err) => {
+      console.error("Admin notification failed, but booking was created:", err);
     });
 
     return NextResponse.json({

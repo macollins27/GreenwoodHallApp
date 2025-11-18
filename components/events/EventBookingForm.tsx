@@ -4,6 +4,14 @@ import { FormEvent, useEffect, useState } from "react";
 import type { PricingBreakdown } from "@/lib/pricing";
 import { MAX_GUESTS, PRICING_DETAILS } from "@/lib/constants";
 
+type AddOn = {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  active: boolean;
+};
+
 const timeSlots = Array.from({ length: 17 }, (_, index) => {
   const hour = 8 + index;
   const label = new Intl.DateTimeFormat("en-US", {
@@ -63,6 +71,41 @@ export default function EventBookingForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [pricingSummary, setPricingSummary] =
     useState<PricingBreakdown | null>(null);
+  const [addOns, setAddOns] = useState<AddOn[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Fetch active add-ons
+    async function fetchAddOns() {
+      try {
+        const response = await fetch("/api/admin/addons");
+        if (response.ok) {
+          const data = await response.json();
+          setAddOns(data.filter((a: AddOn) => a.active));
+        }
+      } catch (err) {
+        console.error("Failed to load add-ons:", err);
+      }
+    }
+    fetchAddOns();
+  }, []);
+
+  function handleAddOnChange(addOnId: string, quantity: number) {
+    setSelectedAddOns(prev => {
+      if (quantity <= 0) {
+        const { [addOnId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [addOnId]: quantity };
+    });
+  }
+
+  function calculateAddOnsSubtotal() {
+    return Object.entries(selectedAddOns).reduce((total, [addOnId, quantity]) => {
+      const addOn = addOns.find(a => a.id === addOnId);
+      return total + (addOn ? addOn.priceCents * quantity : 0);
+    }, 0);
+  }
 
   useEffect(() => {
     if (!selectedDate) {
@@ -191,6 +234,14 @@ export default function EventBookingForm() {
       contactEmail: contactEmailValue,
       contactPhone: (formData.get("contactPhone") as string) ?? "",
       notes: (formData.get("notes") as string) ?? "",
+      addOns: Object.entries(selectedAddOns).map(([addOnId, quantity]) => {
+        const addOn = addOns.find(a => a.id === addOnId)!;
+        return {
+          addOnId,
+          quantity,
+          priceAtBooking: addOn.priceCents,
+        };
+      }),
     };
 
     setIsSubmitting(true);
@@ -417,6 +468,53 @@ export default function EventBookingForm() {
               />
             </div>
 
+            {/* Add-ons Section */}
+            {addOns.length > 0 && (
+              <div className="md:col-span-2 space-y-3">
+                <h3 className="text-base font-semibold text-primary">
+                  Optional Add-ons
+                </h3>
+                <div className="space-y-2">
+                  {addOns.map((addOn) => (
+                    <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-primary/20 bg-white p-4 shadow-sm">
+                      <div className="flex-1">
+                        <p className="font-semibold text-textMain">{addOn.name}</p>
+                        {addOn.description && (
+                          <p className="text-sm text-slate-600 mt-1">{addOn.description}</p>
+                        )}
+                        <p className="mt-1 text-sm font-semibold text-primary">
+                          {formatCurrency(addOn.priceCents)} each
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label htmlFor={`addon-${addOn.id}`} className="text-sm font-semibold text-slate-700">
+                          Qty:
+                        </label>
+                        <input
+                          type="number"
+                          id={`addon-${addOn.id}`}
+                          min="0"
+                          value={selectedAddOns[addOn.id] || 0}
+                          onChange={(e) => handleAddOnChange(addOn.id, parseInt(e.target.value) || 0)}
+                          className="w-20 rounded-lg border border-primary/20 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {Object.keys(selectedAddOns).length > 0 && (
+                  <div className="rounded-xl bg-primary/5 p-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold text-slate-900">Add-ons Subtotal:</span>
+                      <span className="font-bold text-primary">
+                        {formatCurrency(calculateAddOnsSubtotal())}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-2 md:col-span-2">
               <label htmlFor="notes" className="text-sm font-semibold">
                 Notes &amp; special requests
@@ -435,9 +533,10 @@ export default function EventBookingForm() {
             {pricingSummary ? (
               <div className="space-y-3">
                 <p className="text-base font-semibold text-primary">
-                  Estimated total: {formatCurrency(pricingSummary.totalCents)}
+                  Estimated total: {formatCurrency(pricingSummary.totalCents + calculateAddOnsSubtotal())}
                 </p>
                 <div className="space-y-1 text-sm text-slate-700">
+                  {/* Base rental */}
                   <p>
                     {pricingSummary.dayType === "weekday"
                       ? "Weekday"
@@ -448,18 +547,61 @@ export default function EventBookingForm() {
                       {formatCurrency(pricingSummary.baseAmountCents)}
                     </span>
                   </p>
+                  
+                  {/* Extra setup hours */}
                   <p>
                     Extra setup ({pricingSummary.extraSetupHours} hrs):{" "}
                     <span className="font-semibold">
                       {formatCurrency(pricingSummary.extraSetupCents)}
                     </span>
                   </p>
+                  
+                  {/* Add-ons section - itemized */}
+                  {Object.keys(selectedAddOns).length > 0 && (
+                    <div className="pt-2 pb-1 border-t border-primary/20">
+                      <p className="font-medium text-primary mb-1">Add-ons:</p>
+                      <div className="pl-3 space-y-0.5">
+                        {Object.entries(selectedAddOns).map(([addOnId, quantity]) => {
+                          const addOn = addOns.find(a => a.id === addOnId);
+                          if (!addOn || quantity <= 0) return null;
+                          
+                          const lineTotal = addOn.priceCents * quantity;
+                          
+                          return (
+                            <p key={addOnId} className="text-xs text-slate-600">
+                              {addOn.name}
+                              {quantity > 1 && (
+                                <span className="text-slate-500">
+                                  {" "}({quantity} × {formatCurrency(addOn.priceCents)})
+                                </span>
+                              )}
+                              :{" "}
+                              <span className="font-semibold text-slate-700">
+                                {formatCurrency(lineTotal)}
+                              </span>
+                            </p>
+                          );
+                        })}
+                        <p className="text-sm font-medium text-slate-700 pt-1">
+                          Add-ons subtotal:{" "}
+                          <span className="font-semibold">
+                            {formatCurrency(calculateAddOnsSubtotal())}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Refundable deposit */}
                   <p>
                     Refundable deposit:{" "}
                     <span className="font-semibold">
                       {formatCurrency(pricingSummary.depositCents)}
                     </span>
                   </p>
+                  
+                  {/* Note about Stripe total matching */}
+                  {/* The displayed total must always match the Stripe Checkout amount, including add-ons. */}
                 </div>
               </div>
             ) : (

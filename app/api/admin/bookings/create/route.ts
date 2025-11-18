@@ -4,6 +4,7 @@ import {
   PricingError,
   validateAndCalculatePricing,
 } from "@/lib/pricing";
+import { sendAdminNotificationEmail } from "@/lib/email";
 
 type AdminBookingRequestBody = {
   bookingType?: string;
@@ -22,6 +23,19 @@ type AdminBookingRequestBody = {
   paymentMethod?: string;
   status?: string;
   amountPaidCents?: number;
+  // Setup fields (EVENT only)
+  rectTablesRequested?: number | null;
+  roundTablesRequested?: number | null;
+  chairsRequested?: number | null;
+  setupNotes?: string | null;
+  // Add-ons (EVENT only)
+  addOns?: Array<{
+    addOnId: string;
+    quantity: number;
+    priceAtBooking: number;
+  }>;
+  // Email configuration
+  sendAdminEmail?: boolean; // Optional flag to control admin notifications
 };
 
 function parseDateOnly(dateStr: string | undefined): Date | null {
@@ -106,6 +120,12 @@ export async function POST(request: Request) {
     paymentMethod,
     status,
     amountPaidCents,
+    rectTablesRequested,
+    roundTablesRequested,
+    chairsRequested,
+    setupNotes,
+    addOns,
+    sendAdminEmail = true, // Default to true for backwards compatibility
   } = body;
 
   const normalizedBookingType =
@@ -194,6 +214,13 @@ export async function POST(request: Request) {
           status: validatedStatus,
         },
       });
+
+      // Optionally send admin notification for admin-created showings
+      if (sendAdminEmail) {
+        sendAdminNotificationEmail(booking, "SHOWING").catch((err) => {
+          console.error("Admin notification email failed for admin-created showing:", err);
+        });
+      }
 
       return NextResponse.json(
         {
@@ -352,6 +379,11 @@ export async function POST(request: Request) {
         paymentMethod: normalizedPaymentMethod,
         status: normalizedStatus,
         amountPaidCents: normalizedAmountPaid,
+        // Setup fields (EVENT only)
+        rectTablesRequested: normalizedBookingType === "EVENT" ? (rectTablesRequested ?? null) : null,
+        roundTablesRequested: normalizedBookingType === "EVENT" ? (roundTablesRequested ?? null) : null,
+        chairsRequested: normalizedBookingType === "EVENT" ? (chairsRequested ?? null) : null,
+        setupNotes: normalizedBookingType === "EVENT" ? (setupNotes?.trim() || null) : null,
         // Admin bookings auto-accept contract
         contractAccepted: true,
         contractAcceptedAt: new Date(),
@@ -362,8 +394,32 @@ export async function POST(request: Request) {
         stripeCheckoutSessionId: null,
         stripePaymentStatus:
           normalizedPaymentMethod === "STRIPE" ? null : "manual",
+        // Add-ons (EVENT only)
+        addOns: normalizedBookingType === "EVENT" && addOns && addOns.length > 0
+          ? {
+              create: addOns.map((addon) => ({
+                addOnId: addon.addOnId,
+                quantity: addon.quantity,
+                priceAtBooking: addon.priceAtBooking,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        addOns: {
+          include: {
+            addOn: true,
+          },
+        },
       },
     });
+
+    // Optionally send admin notification for admin-created events
+    if (sendAdminEmail) {
+      sendAdminNotificationEmail(booking, "EVENT").catch((err) => {
+        console.error("Admin notification email failed for admin-created event:", err);
+      });
+    }
 
     return NextResponse.json(
       {

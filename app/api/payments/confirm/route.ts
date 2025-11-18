@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { sendBookingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
 
 type RequestBody = {
   sessionId?: string;
@@ -57,6 +58,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // CRITICAL: Only event bookings have payments
+    if (booking.bookingType !== "EVENT") {
+      return NextResponse.json(
+        { error: "Payment confirmation is only available for event bookings." },
+        { status: 400 }
+      );
+    }
+
     // Idempotency: if already paid, return success without updating
     if (booking.stripePaymentStatus === "paid") {
       return NextResponse.json({
@@ -83,6 +92,23 @@ export async function POST(request: Request) {
           typeof session.amount_total === "number" ? session.amount_total : 0,
         status: "CONFIRMED",
       },
+      include: {
+        addOns: {
+          include: {
+            addOn: true,
+          },
+        },
+      },
+    });
+
+    // Send confirmation emails after successful payment
+    // Errors are logged but won't break the payment confirmation flow
+    sendBookingConfirmationEmail(updated).catch((err) => {
+      console.error("Email sending failed after payment confirmation:", err);
+    });
+    
+    sendAdminNotificationEmail(updated, "EVENT").catch((err) => {
+      console.error("Admin notification failed after payment confirmation:", err);
     });
 
     return NextResponse.json({

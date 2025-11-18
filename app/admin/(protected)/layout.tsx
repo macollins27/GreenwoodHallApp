@@ -71,6 +71,14 @@ export default async function AdminProtectedLayout({
                   Showing Settings
                 </Link>
               </li>
+              <li>
+                <Link
+                  href="/admin/addons"
+                  className="block px-4 py-3 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Manage Add-ons
+                </Link>
+              </li>
             </ul>
           </div>
         </nav>

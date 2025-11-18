@@ -1,7 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+type AddOn = {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  active: boolean;
+};
 
 const timeSlots = Array.from({ length: 17 }, (_, index) => {
   const hour = 8 + index;
@@ -38,6 +46,41 @@ export default function AdminEventForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addOns, setAddOns] = useState<AddOn[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    // Fetch active add-ons
+    async function fetchAddOns() {
+      try {
+        const response = await fetch("/api/admin/addons");
+        if (response.ok) {
+          const data = await response.json();
+          setAddOns(data.filter((a: AddOn) => a.active));
+        }
+      } catch (err) {
+        console.error("Failed to load add-ons:", err);
+      }
+    }
+    fetchAddOns();
+  }, []);
+
+  function handleAddOnChange(addOnId: string, quantity: number) {
+    setSelectedAddOns(prev => {
+      if (quantity <= 0) {
+        const { [addOnId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [addOnId]: quantity };
+    });
+  }
+
+  function calculateAddOnsSubtotal() {
+    return Object.entries(selectedAddOns).reduce((total, [addOnId, quantity]) => {
+      const addOn = addOns.find(a => a.id === addOnId);
+      return total + (addOn ? addOn.priceCents * quantity : 0);
+    }, 0);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,6 +104,20 @@ export default function AdminEventForm() {
       paymentMethod: formData.get("paymentMethod") as string,
       status: formData.get("status") as string,
       amountPaidCents: Number(formData.get("amountPaid") || 0) * 100,
+      // Setup fields
+      rectTablesRequested: formData.get("rectTables") ? Number(formData.get("rectTables")) : null,
+      roundTablesRequested: formData.get("roundTables") ? Number(formData.get("roundTables")) : null,
+      chairsRequested: formData.get("chairs") ? Number(formData.get("chairs")) : null,
+      setupNotes: formData.get("setupNotes") as string || null,
+      // Add-ons
+      addOns: Object.entries(selectedAddOns).map(([addOnId, quantity]) => {
+        const addOn = addOns.find(a => a.id === addOnId)!;
+        return {
+          addOnId,
+          quantity,
+          priceAtBooking: addOn.priceCents,
+        };
+      }),
     };
 
     setIsSubmitting(true);
@@ -336,6 +393,116 @@ export default function AdminEventForm() {
             </div>
           </div>
         </div>
+
+        {/* Setup Preferences */}
+        <div className="rounded-2xl border border-slate-200 p-6">
+          <h3 className="mb-4 text-lg font-semibold text-slate-900">Setup Preferences</h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label htmlFor="rectTables" className="block text-sm font-semibold text-slate-700">
+                Rectangular Tables
+              </label>
+              <input
+                type="number"
+                id="rectTables"
+                name="rectTables"
+                min="0"
+                placeholder="Optional"
+                className="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="roundTables" className="block text-sm font-semibold text-slate-700">
+                Round Tables
+              </label>
+              <input
+                type="number"
+                id="roundTables"
+                name="roundTables"
+                min="0"
+                placeholder="Optional"
+                className="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="chairs" className="block text-sm font-semibold text-slate-700">
+                Chairs
+              </label>
+              <input
+                type="number"
+                id="chairs"
+                name="chairs"
+                min="0"
+                placeholder="Optional"
+                className="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2 text-sm focus:border-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label htmlFor="setupNotes" className="block text-sm font-semibold text-slate-700">
+              Setup Notes
+            </label>
+            <textarea
+              id="setupNotes"
+              name="setupNotes"
+              rows={2}
+              placeholder="Any special setup requirements or instructions"
+              className="mt-1 w-full rounded-2xl border border-slate-300 px-4 py-2 text-sm focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Add-ons */}
+        {addOns.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-slate-900">Optional Add-ons</h3>
+            <div className="space-y-3">
+              {addOns.map((addOn) => (
+                <div key={addOn.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900">{addOn.name}</p>
+                    {addOn.description && (
+                      <p className="text-sm text-slate-600">{addOn.description}</p>
+                    )}
+                    <p className="mt-1 text-sm font-semibold text-primary">
+                      ${(addOn.priceCents / 100).toFixed(2)} each
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor={`addon-${addOn.id}`} className="text-sm font-semibold text-slate-700">
+                      Quantity:
+                    </label>
+                    <input
+                      type="number"
+                      id={`addon-${addOn.id}`}
+                      min="0"
+                      value={selectedAddOns[addOn.id] || 0}
+                      onChange={(e) => handleAddOnChange(addOn.id, parseInt(e.target.value) || 0)}
+                      className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {Object.keys(selectedAddOns).length > 0 && (
+              <div className="mt-4 rounded-xl bg-primary/5 p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="font-semibold text-slate-900">Add-ons Subtotal:</span>
+                  <span className="font-bold text-primary">
+                    ${(calculateAddOnsSubtotal() / 100).toFixed(2)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  (For reference only - adjust "Amount Paid" above as needed)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Submit */}
         <div className="flex gap-3">

@@ -35,6 +35,13 @@ export default async function BookingWizardPage({ params }: PageProps) {
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
+    include: {
+      addOns: {
+        include: {
+          addOn: true,
+        },
+      },
+    },
   });
 
   if (!booking) {

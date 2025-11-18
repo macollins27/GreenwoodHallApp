@@ -37,6 +37,16 @@ type EventBooking = {
   roundTablesRequested: number | null;
   chairsRequested: number | null;
   setupNotes: string | null;
+  addOns?: Array<{
+    id: string;
+    quantity: number;
+    priceAtBooking: number;
+    addOn: {
+      id: string;
+      name: string;
+      description: string | null;
+    };
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -253,6 +263,44 @@ export default function EventDetailClient({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Add-ons */}
+        {booking.addOns && booking.addOns.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Add-ons
+            </h2>
+            <div className="mt-3 space-y-3">
+              {booking.addOns.map((bookingAddOn) => (
+                <div key={bookingAddOn.id} className="flex justify-between items-start text-sm">
+                  <div>
+                    <p className="font-semibold text-slate-700">{bookingAddOn.addOn.name}</p>
+                    {bookingAddOn.addOn.description && (
+                      <p className="text-xs text-slate-500 mt-0.5">{bookingAddOn.addOn.description}</p>
+                    )}
+                    <p className="text-xs text-slate-600 mt-1">
+                      Quantity: {bookingAddOn.quantity} × {formatCurrency(bookingAddOn.priceAtBooking)}
+                    </p>
+                  </div>
+                  <p className="font-semibold text-slate-700">
+                    {formatCurrency(bookingAddOn.quantity * bookingAddOn.priceAtBooking)}
+                  </p>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-semibold">
+                <span>Add-ons Subtotal</span>
+                <span>
+                  {formatCurrency(
+                    booking.addOns.reduce(
+                      (sum, addon) => sum + addon.quantity * addon.priceAtBooking,
+                      0
+                    )
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 

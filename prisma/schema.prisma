@@ -47,6 +47,9 @@ model Booking {
   chairsRequested      Int?
   setupNotes           String?
 
+  // Relations
+  addOns           BookingAddOn[]
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -79,5 +82,37 @@ model ShowingConfig {
   maxSlotsPerWindow     Int      @default(999) // 999 = unlimited
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model AddOn {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priceCents  Int      // Price in cents
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  // Relations
+  bookings    BookingAddOn[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BookingAddOn {
+  id              String   @id @default(cuid())
+  bookingId       String
+  addOnId         String
+  quantity        Int      @default(1)
+  priceAtBooking  Int      // Price snapshot in cents at time of booking
+  
+  // Relations
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addOn           AddOn    @relation(fields: [addOnId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([bookingId])
+  @@index([addOnId])
 }
 

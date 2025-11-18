@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       contactEmail,
       contactPhone,
       notes,
+      addOns = [],
     } = body;
 
     // Validate required fields
@@ -178,7 +179,13 @@ export async function POST(request: NextRequest) {
     const baseAmountCents = durationHours * hourlyRateCents;
     const extraSetupCents = extraSetup * (PRICING_DETAILS.extraSetupHourly * 100);
     const depositCents = PRICING_DETAILS.securityDeposit * 100;
-    const totalCents = baseAmountCents + extraSetupCents + depositCents;
+    
+    // Calculate add-ons total
+    const addOnsTotal = Array.isArray(addOns) 
+      ? addOns.reduce((sum, addon) => sum + (addon.priceAtBooking * addon.quantity), 0)
+      : 0;
+    
+    const totalCents = baseAmountCents + extraSetupCents + depositCents + addOnsTotal;
 
     // Create booking
     const booking = await prisma.booking.create({
@@ -200,11 +207,20 @@ export async function POST(request: NextRequest) {
         contactEmail,
         contactPhone: contactPhone || null,
         notes: notes || null,
-        status: "PENDING_CONTRACT",
+        status: "PENDING",
         baseAmountCents,
         extraSetupCents,
         depositCents,
         totalCents,
+        addOns: addOns.length > 0
+          ? {
+              create: addOns.map((addon: any) => ({
+                addOnId: addon.addOnId,
+                quantity: addon.quantity,
+                priceAtBooking: addon.priceAtBooking,
+              })),
+            }
+          : undefined,
       },
     });
 

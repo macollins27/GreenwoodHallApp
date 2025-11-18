@@ -59,6 +59,16 @@ type BookingWizardProps = {
     contractSignerName: string | null;
     stripePaymentStatus: string | null;
     amountPaidCents: number;
+    addOns?: Array<{
+      id: string;
+      quantity: number;
+      priceAtBooking: number;
+      addOn: {
+        id: string;
+        name: string;
+        description: string | null;
+      };
+    }>;
   };
 };
 
@@ -501,6 +511,7 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
                   Pricing Summary
                 </h3>
                 <div className="space-y-2 text-sm text-slate-700">
+                  {/* Base rental */}
                   <div className="flex justify-between">
                     <span>
                       {booking.dayType === "weekday" ? "Weekday" : "Weekend"}{" "}
@@ -511,6 +522,8 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
                       {formatCurrency(booking.baseAmountCents)}
                     </span>
                   </div>
+                  
+                  {/* Extra setup */}
                   {booking.extraSetupHours > 0 && (
                     <div className="flex justify-between">
                       <span>
@@ -521,16 +534,61 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
                       </span>
                     </div>
                   )}
+                  
+                  {/* Add-ons section - itemized */}
+                  {booking.addOns && booking.addOns.length > 0 && (
+                    <div className="pt-2 pb-1 border-t border-primary/20">
+                      <p className="font-medium text-primary mb-2">Add-ons:</p>
+                      <div className="pl-3 space-y-1">
+                        {booking.addOns.map((bookingAddOn) => {
+                          const lineTotal = bookingAddOn.priceAtBooking * bookingAddOn.quantity;
+                          
+                          return (
+                            <div key={bookingAddOn.id} className="flex justify-between text-xs text-slate-600">
+                              <span>
+                                {bookingAddOn.addOn.name}
+                                {bookingAddOn.quantity > 1 && (
+                                  <span className="text-slate-500">
+                                    {" "}({bookingAddOn.quantity} × {formatCurrency(bookingAddOn.priceAtBooking)})
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-semibold text-slate-700">
+                                {formatCurrency(lineTotal)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <div className="flex justify-between text-sm font-medium text-slate-700 pt-1 border-t border-slate-200 mt-1">
+                          <span>Add-ons subtotal</span>
+                          <span className="font-semibold">
+                            {formatCurrency(
+                              booking.addOns.reduce(
+                                (sum, addon) => sum + addon.quantity * addon.priceAtBooking,
+                                0
+                              )
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Refundable deposit */}
                   <div className="flex justify-between">
                     <span>Refundable deposit</span>
                     <span className="font-semibold">
                       {formatCurrency(booking.depositCents)}
                     </span>
                   </div>
+                  
+                  {/* Total - must match Stripe checkout amount */}
                   <div className="mt-4 flex justify-between border-t border-primary/20 pt-2 text-base font-bold text-primary">
                     <span>Total</span>
                     <span>{formatCurrency(booking.totalCents)}</span>
                   </div>
+                  
+                  {/* The displayed total must always match the Stripe Checkout amount, including add-ons. */}
                 </div>
               </div>
 

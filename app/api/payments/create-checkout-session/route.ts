@@ -30,6 +30,13 @@ export async function POST(request: Request) {
 
   const booking = await prisma.booking.findUnique({
     where: { id: body.bookingId },
+    include: {
+      addOns: {
+        include: {
+          addOn: true,
+        },
+      },
+    },
   });
 
   if (!booking) {
@@ -68,22 +75,46 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Build line items array
+    const lineItems = [];
+
+    // Calculate base amount (rental + setup + deposit)
+    const baseAmount = booking.baseAmountCents + booking.extraSetupCents + booking.depositCents;
+
+    // Add base rental as first line item
+    lineItems.push({
+      price_data: {
+        currency: "usd",
+        unit_amount: baseAmount,
+        product_data: {
+          name: `Event Rental – ${booking.eventType || "Event"} at Greenwood Hall`,
+          description: `Event on ${formatDate(booking.eventDate)} for ${booking.contactName}`,
+        },
+      },
+      quantity: 1,
+    });
+
+    // Add each add-on as separate line item
+    if (booking.addOns && booking.addOns.length > 0) {
+      for (const bookingAddOn of booking.addOns) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            unit_amount: bookingAddOn.priceAtBooking,
+            product_data: {
+              name: bookingAddOn.addOn.name,
+              description: bookingAddOn.addOn.description || undefined,
+            },
+          },
+          quantity: bookingAddOn.quantity,
+        });
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: booking.totalCents,
-            product_data: {
-              name: `Event Booking – ${booking.eventType || "Event"} at Greenwood Hall`,
-              description: `Event on ${formatDate(booking.eventDate)} for ${booking.contactName}`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: {
@@ -105,7 +136,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ checkoutUrl: session.url });
   } catch (error) {
-    console.error("Failed to create checkout session", error);
+    console.error("❌ Failed to create checkout session:", error);
+    console.error("Error details:", {
+      bookingId: booking.id,
+      totalCents: booking.totalCents,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
       { error: "Unable to start payment session." },
       { status: 500 }
