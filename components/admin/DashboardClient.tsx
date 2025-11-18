@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AdminCalendar from "./AdminCalendar";
 
 type BookingRow = {
   id: string;
@@ -58,6 +59,7 @@ export default function DashboardClient({
   const [blockedDate, setBlockedDate] = useState("");
   const [blockedReason, setBlockedReason] = useState("");
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [dashboardView, setDashboardView] = useState<"list" | "calendar">("list");
 
   async function addBlockedDate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,19 +98,62 @@ export default function DashboardClient({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl bg-white p-6 shadow-card">
+      {/* View Toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setDashboardView("list")}
+            className={`px-6 py-3 text-sm font-semibold transition ${
+              dashboardView === "list"
+                ? "bg-primary text-white"
+                : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            📋 List View
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardView("calendar")}
+            className={`px-6 py-3 text-sm font-semibold transition ${
+              dashboardView === "calendar"
+                ? "bg-primary text-white"
+                : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            📅 Calendar View
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar View */}
+      {dashboardView === "calendar" && <AdminCalendar />}
+
+      {/* List View */}
+      {dashboardView === "list" && (
+        <>
+          <section className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
               Bookings
             </p>
             <h2 className="text-xl font-semibold text-textMain">
-              Upcoming Events & Showings
+              Upcoming Events &amp; Showings
             </h2>
           </div>
-          <p className="text-sm text-slate-500">
-            Showing next {initialBookings.length} records
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-slate-500">
+              Showing next {initialBookings.length} records
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/bookings/create")}
+              className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90"
+            >
+              + Create Booking
+            </button>
+          </div>
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-sm text-slate-700">
@@ -250,6 +295,8 @@ export default function DashboardClient({
           </button>
         </form>
       </section>
+        </>
+      )}
     </div>
   );
 }

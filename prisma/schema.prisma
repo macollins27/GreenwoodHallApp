@@ -36,6 +36,10 @@ model Booking {
   stripeCheckoutSessionId String?
   stripePaymentStatus     String?
   amountPaidCents         Int     @default(0)
+  
+  // Admin manual booking fields
+  paymentMethod    String?  @default("STRIPE")
+  adminNotes       String?
 
   // Setup preferences (optional, for EVENT bookings)
   rectTablesRequested  Int?
@@ -54,5 +58,26 @@ model BlockedDate {
   date      DateTime @unique
   reason    String?
   createdAt DateTime @default(now())
+}
+
+model ShowingAvailability {
+  id                    String   @id @default(cuid())
+  dayOfWeek             Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime             String   // e.g., "15:00" for 3pm
+  endTime               String   // e.g., "18:00" for 6pm
+  enabled               Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([dayOfWeek, startTime, endTime])
+}
+
+model ShowingConfig {
+  id                    String   @id @default(cuid())
+  key                   String   @unique
+  defaultDurationMinutes Int     @default(30)
+  maxSlotsPerWindow     Int      @default(999) // 999 = unlimited
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 

@@ -20,7 +20,7 @@ export default function Amenities() {
           ))}
         </div>
         <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/5 p-5 text-sm text-danger">
-          <strong className="font-semibold">Barehall Rental Only – </strong>
+          <strong className="font-semibold">Barehall Rental Only - </strong>
           We rent a clean, flexible space with tables, chairs, kitchen, and
           bathrooms. You provide your own food, drinks, decor, and staffing. We
           do not supply catering, bar service, or decorations.
@@ -29,4 +29,3 @@ export default function Amenities() {
     </section>
   );
 }
-

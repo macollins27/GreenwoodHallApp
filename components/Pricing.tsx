@@ -2,7 +2,7 @@ import { PRICING_DETAILS } from "@/lib/constants";
 
 const pricingCards = [
   {
-    title: "Weekdays (Mon–Thu)",
+    title: "Weekdays (Mon-Thu)",
     rate: PRICING_DETAILS.weekdayRate,
     minimum: "No minimum hours",
     perks: [
@@ -11,7 +11,7 @@ const pricingCards = [
     ],
   },
   {
-    title: "Weekends (Fri–Sun)",
+    title: "Weekends (Fri-Sun)",
     rate: PRICING_DETAILS.weekendRate,
     minimum: `${PRICING_DETAILS.weekendMinimumHours}-hour minimum`,
     perks: [
@@ -50,7 +50,7 @@ export default function Pricing() {
                 {card.perks.map((perk) => (
                   <li key={perk} className="flex items-start gap-2">
                     <span aria-hidden="true" className="text-primary">
-                      ●
+                      -
                     </span>
                     {perk}
                   </li>
@@ -74,4 +74,3 @@ export default function Pricing() {
     </section>
   );
 }
-

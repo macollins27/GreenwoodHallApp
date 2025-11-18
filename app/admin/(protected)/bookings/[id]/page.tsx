@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
-import BookingDetailClient from "@/components/admin/BookingDetailClient";
+import EventDetailClient from "@/components/admin/EventDetailClient";
+import ShowingDetailClient from "@/components/admin/ShowingDetailClient";
 
 type PageProps = {
-  params: {
-    id?: string;
-    bookingId?: string;
-  };
+  params: Promise<{
+    id: string;
+  }>;
 };
 
 export default async function BookingDetailPage({ params }: PageProps) {
-  const bookingId = params.id ?? params.bookingId;
+  const { id: bookingId } = await params;
 
   if (!bookingId || bookingId.trim() === "") {
     notFound();
@@ -34,8 +34,16 @@ export default async function BookingDetailPage({ params }: PageProps) {
     contractAcceptedAt: booking.contractAcceptedAt
       ? booking.contractAcceptedAt.toISOString()
       : null,
+    paymentMethod: booking.paymentMethod,
+    adminNotes: booking.adminNotes,
   };
 
-  return <BookingDetailClient booking={serializedBooking} />;
+  // Route to completely different detail views based on booking type
+  if (booking.bookingType === "SHOWING") {
+    return <ShowingDetailClient booking={serializedBooking} />;
+  }
+
+  // Default to event detail for EVENT bookings
+  return <EventDetailClient booking={serializedBooking} />;
 }
 

@@ -10,6 +10,7 @@ type BookingRequestBody = {
   eventDate?: string;
   startTime?: string;
   endTime?: string;
+  appointmentTime?: string; // For SHOWING bookings
   extraSetupHours?: number;
   eventType?: string;
   guestCount?: number | string;
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
     eventDate,
     startTime,
     endTime,
+    appointmentTime,
     extraSetupHours,
     eventType,
     guestCount,
@@ -105,16 +107,105 @@ export async function POST(request: Request) {
   const normalizedBookingType =
     bookingType === "SHOWING" ? "SHOWING" : "EVENT";
 
-  if (
-    !eventDate ||
-    !startTime ||
-    !endTime ||
-    !eventType ||
-    !contactName ||
-    !contactEmail
-  ) {
+  // Basic validation
+  if (!eventDate || !contactName || !contactEmail) {
     return NextResponse.json(
-      { error: "Missing required fields." },
+      { error: "Missing required fields: eventDate, contactName, contactEmail" },
+      { status: 400 }
+    );
+  }
+
+  // SHOWING-specific logic
+  if (normalizedBookingType === "SHOWING") {
+    if (!appointmentTime) {
+      return NextResponse.json(
+        { error: "Appointment time is required for showings." },
+        { status: 400 }
+      );
+    }
+
+    const eventDateObj = parseDateOnly(eventDate);
+    if (!eventDateObj) {
+      return NextResponse.json(
+        { error: "Invalid date format." },
+        { status: 400 }
+      );
+    }
+
+    // Get showing configuration to determine duration
+    const showingConfig = await prisma.showingConfig.findFirst();
+    const durationMinutes = showingConfig?.defaultDurationMinutes || 30;
+
+    const startDateTime = combineDateAndTime(eventDate, appointmentTime);
+    if (!startDateTime) {
+      return NextResponse.json(
+        { error: "Invalid appointment time format." },
+        { status: 400 }
+      );
+    }
+
+    // Calculate end time
+    const endDateTime = new Date(startDateTime);
+    endDateTime.setMinutes(endDateTime.getMinutes() + durationMinutes);
+
+    const normalizedEventDate = new Date(
+      eventDateObj.getFullYear(),
+      eventDateObj.getMonth(),
+      eventDateObj.getDate()
+    );
+
+    try {
+      const booking = await prisma.booking.create({
+        data: {
+          bookingType: "SHOWING",
+          eventDate: normalizedEventDate,
+          startTime: startDateTime,
+          endTime: endDateTime,
+          dayType: "weekday",
+          hourlyRateCents: 0,
+          eventHours: 0,
+          extraSetupHours: 0,
+          baseAmountCents: 0,
+          extraSetupCents: 0,
+          depositCents: 0,
+          totalCents: 0,
+          contactName,
+          contactEmail,
+          contactPhone: contactPhone?.trim() || null,
+          eventType: eventType || "Hall Showing",
+          guestCount: null,
+          notes: notes?.trim() || null,
+          contractAccepted: false,
+          contractAcceptedAt: null,
+          contractSignerName: null,
+          contractVersion: null,
+          contractText: null,
+          status: "PENDING",
+        },
+      });
+
+      return NextResponse.json(
+        {
+          bookingId: booking.id,
+          booking: booking,
+          bookingType: booking.bookingType,
+          status: booking.status,
+        },
+        { status: 201 }
+      );
+    } catch (error) {
+      console.error("Failed to create showing booking:", error);
+      return NextResponse.json(
+        { error: "Unable to create showing at this time." },
+        { status: 500 }
+      );
+    }
+  }
+
+  // EVENT-specific logic
+  if (!startTime || !endTime || !eventType) {
+    return NextResponse.json(
+      { error: "Missing required fields for event booking: startTime, endTime, eventType" },
       { status: 400 }
     );
   }

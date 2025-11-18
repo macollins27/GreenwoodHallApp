@@ -60,6 +60,12 @@ function getLocalWeekdayFromDateString(dateStr: string): number | null {
   return localDate.getDay(); // 0=Sun,1=Mon,...6=Sat
 }
 
+type ShowingSlot = {
+  time: string;
+  available: boolean;
+  reason?: string;
+};
+
 export default function BookingForm() {
   const [selectedDate, setSelectedDate] = useState("");
   const [availabilityStatus, setAvailabilityStatus] =
@@ -70,6 +76,11 @@ export default function BookingForm() {
   const [pricingSummary, setPricingSummary] =
     useState<PricingBreakdown | null>(null);
   const [bookingType, setBookingType] = useState<BookingType>("EVENT");
+  
+  // SHOWING-specific state
+  const [showingSlots, setShowingSlots] = useState<ShowingSlot[]>([]);
+  const [showingSlotsLoading, setShowingSlotsLoading] = useState(false);
+  const [selectedShowingTime, setSelectedShowingTime] = useState<string>("");
 
   useEffect(() => {
     if (!selectedDate) {
@@ -105,6 +116,44 @@ export default function BookingForm() {
     return () => controller.abort();
   }, [selectedDate]);
 
+  // Fetch showing slots when date changes for SHOWING type
+  useEffect(() => {
+    if (!selectedDate || bookingType !== "SHOWING") {
+      setShowingSlots([]);
+      setSelectedShowingTime("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setShowingSlotsLoading(true);
+
+    fetch(`/api/showing-slots?date=${selectedDate}`, {
+      signal: controller.signal,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.slots && Array.isArray(data.slots)) {
+          setShowingSlots(data.slots);
+          // Auto-select first available slot if any
+          const firstAvailable = data.slots.find((s: ShowingSlot) => s.available);
+          if (firstAvailable) {
+            setSelectedShowingTime(firstAvailable.time);
+          }
+        } else {
+          setShowingSlots([]);
+        }
+        setShowingSlotsLoading(false);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        console.error("Failed to fetch showing slots:", err);
+        setShowingSlots([]);
+        setShowingSlotsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedDate, bookingType]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -123,24 +172,103 @@ export default function BookingForm() {
       return;
     }
 
-    // Contract acceptance is now handled in the wizard flow
-
     const formData = new FormData(event.currentTarget);
     const eventDateValue = (formData.get("eventDate") as string)?.trim();
-    const startTimeValue = (formData.get("startTime") as string)?.trim();
-    const endTimeValue = (formData.get("endTime") as string)?.trim();
-    const eventTypeValue = (formData.get("eventType") as string)?.trim();
     const contactNameValue = (formData.get("contactName") as string)?.trim();
     const contactEmailValue = (formData.get("contactEmail") as string)?.trim();
 
-    // ----- basic date/time validation on the client -----
+    // Basic validation
     if (!eventDateValue) {
-      setError("Please choose an event date.");
+      setError("Please choose a date.");
       return;
     }
 
+    if (!contactNameValue || !contactEmailValue) {
+      setError("Please provide your name and email.");
+      return;
+    }
+
+    // SHOWING-specific validation
+    if (bookingType === "SHOWING") {
+      if (!selectedShowingTime) {
+        setError("Please select an appointment time.");
+        return;
+      }
+
+      const selectedSlot = showingSlots.find(s => s.time === selectedShowingTime);
+      if (selectedSlot && !selectedSlot.available) {
+        setError("The selected time slot is no longer available. Please choose another.");
+        return;
+      }
+
+      const payload = {
+        bookingType: "SHOWING" as const,
+        eventDate: eventDateValue,
+        appointmentTime: selectedShowingTime,
+        eventType: "Hall Showing",
+        contactName: contactNameValue,
+        contactEmail: contactEmailValue,
+        contactPhone: (formData.get("contactPhone") as string) ?? "",
+        notes: (formData.get("notes") as string) ?? "",
+      };
+
+      setIsSubmitting(true);
+      try {
+        const response = await fetch("/api/bookings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => null);
+          throw new Error(
+            errorPayload?.error ?? "Unable to submit your booking right now."
+          );
+        }
+
+        const data = await response.json();
+        
+        const bookingId =
+          data.bookingId ??
+          data.booking?.id ??
+          data.id ??
+          null;
+        
+        if (!bookingId || typeof bookingId !== "string" || bookingId.trim() === "") {
+          setError(
+            "We couldn't create your showing appointment. Please try again or contact us if the problem continues."
+          );
+          return;
+        }
+        
+        window.location.href = `/booking/${bookingId}`;
+      } catch (submissionError) {
+        setError(
+          submissionError instanceof Error
+            ? submissionError.message
+            : "Something went wrong. Please try again."
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // EVENT-specific validation
+    const startTimeValue = (formData.get("startTime") as string)?.trim();
+    const endTimeValue = (formData.get("endTime") as string)?.trim();
+    const eventTypeValue = (formData.get("eventType") as string)?.trim();
+
     if (!startTimeValue || !endTimeValue) {
       setError("Please choose both a start time and an end time.");
+      return;
+    }
+
+    if (!eventTypeValue) {
+      setError("Please select an event type.");
       return;
     }
 
@@ -170,22 +298,8 @@ export default function BookingForm() {
     const isWeekend = weekday === 0 || weekday === 5 || weekday === 6; // Sun, Fri, Sat
     const durationHours = endHour - startHour;
 
-    if (bookingType === "EVENT" && isWeekend && durationHours < 4) {
+    if (isWeekend && durationHours < 4) {
       setError("Weekend event bookings must be at least 4 hours.");
-      return;
-    }
-
-    // ----- existing submit logic continues here (calling /api/bookings) -----
-
-    if (
-      !eventDateValue ||
-      !startTimeValue ||
-      !endTimeValue ||
-      !eventTypeValue ||
-      !contactNameValue ||
-      !contactEmailValue
-    ) {
-      setError("Please complete all required fields.");
       return;
     }
 
@@ -201,11 +315,11 @@ export default function BookingForm() {
         : null;
 
     const payload = {
-      bookingType,
+      bookingType: "EVENT" as const,
       eventDate: eventDateValue,
       startTime: startTimeValue,
       endTime: endTimeValue,
-      extraSetupHours: bookingType === "EVENT" ? extraSetupHours : 0,
+      extraSetupHours,
       eventType: eventTypeValue,
       guestCount:
         guestCountNumber !== null && !Number.isNaN(guestCountNumber)
@@ -369,87 +483,136 @@ export default function BookingForm() {
                   "We couldn’t verify availability. You can still submit the form."}
               </p>
             </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="event-type" className="text-sm font-semibold">
-                Event type
-              </label>
-              <select
-                id="event-type"
-                name="eventType"
-                className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
-                defaultValue={eventTypes[0]}
-              >
-                {eventTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="start-time" className="text-sm font-semibold">
-                Start time
-              </label>
-              <select
-                id="start-time"
-                name="startTime"
-                className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
-                defaultValue="12:00"
-              >
-                {timeSlots.map((slot) => (
-                  <option key={slot.value} value={slot.value}>
-                    {slot.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="end-time" className="text-sm font-semibold">
-                End time
-              </label>
-              <select
-                id="end-time"
-                name="endTime"
-                className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
-                defaultValue="18:00"
-              >
-                {timeSlots.map((slot) => (
-                  <option key={slot.value} value={slot.value}>
-                    {slot.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {bookingType === "EVENT" && (
+
+            {bookingType === "SHOWING" ? (
               <div className="flex flex-col gap-2">
-                <label htmlFor="extra-setup" className="text-sm font-semibold">
-                  Extra setup hours (beyond {PRICING_DETAILS.includedSetupHours}{" "}
-                  free) - ${PRICING_DETAILS.extraSetupHourly}/hour
+                <label htmlFor="showing-time" className="text-sm font-semibold">
+                  Appointment time
                 </label>
-                <input
-                  id="extra-setup"
-                  name="extraSetupHours"
-                  type="number"
-                  min={0}
-                  defaultValue={0}
+                {showingSlotsLoading ? (
+                  <div className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-slate-500">
+                    Loading available times...
+                  </div>
+                ) : showingSlots.length === 0 && selectedDate ? (
+                  <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                    No showing times available on this date. Please choose another day or contact us directly.
+                  </div>
+                ) : showingSlots.length > 0 ? (
+                  <select
+                    id="showing-time"
+                    value={selectedShowingTime}
+                    onChange={(e) => setSelectedShowingTime(e.target.value)}
+                    required
+                    className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
+                  >
+                    {showingSlots.map((slot) => (
+                      <option 
+                        key={slot.time} 
+                        value={slot.time}
+                        disabled={!slot.available}
+                      >
+                        {slot.time} {!slot.available ? `(${slot.reason || 'Unavailable'})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-slate-500">
+                    Select a date to see available times
+                  </div>
+                )}
+                <p className="text-xs text-slate-600">
+                  Showings are typically 30 minutes.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <label htmlFor="event-type" className="text-sm font-semibold">
+                  Event type
+                </label>
+                <select
+                  id="event-type"
+                  name="eventType"
                   className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
-                />
+                  defaultValue={eventTypes[0]}
+                >
+                  {eventTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
-            <div className="flex flex-col gap-2">
-              <label htmlFor="guest-count" className="text-sm font-semibold">
-                Guest count (max {MAX_GUESTS})
-              </label>
-              <input
-                id="guest-count"
-                name="guestCount"
-                type="number"
-                min={10}
-                max={MAX_GUESTS}
-                placeholder="e.g., 80"
-                className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
-              />
-            </div>
+            {bookingType === "EVENT" && (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="start-time" className="text-sm font-semibold">
+                    Start time
+                  </label>
+                  <select
+                    id="start-time"
+                    name="startTime"
+                    className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
+                    defaultValue="12:00"
+                  >
+                    {timeSlots.map((slot) => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="end-time" className="text-sm font-semibold">
+                    End time
+                  </label>
+                  <select
+                    id="end-time"
+                    name="endTime"
+                    className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
+                    defaultValue="18:00"
+                  >
+                    {timeSlots.map((slot) => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+            {bookingType === "EVENT" && (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="extra-setup" className="text-sm font-semibold">
+                    Extra setup hours (beyond {PRICING_DETAILS.includedSetupHours}{" "}
+                    free) - ${PRICING_DETAILS.extraSetupHourly}/hour
+                  </label>
+                  <input
+                    id="extra-setup"
+                    name="extraSetupHours"
+                    type="number"
+                    min={0}
+                    defaultValue={0}
+                    className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="guest-count" className="text-sm font-semibold">
+                    Guest count (max {MAX_GUESTS})
+                  </label>
+                  <input
+                    id="guest-count"
+                    name="guestCount"
+                    type="number"
+                    min={10}
+                    max={MAX_GUESTS}
+                    placeholder="e.g., 80"
+                    className="rounded-2xl border border-primary/20 bg-white px-4 py-3 text-sm text-textMain shadow-sm focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
             <div className="flex flex-col gap-2">
               <label htmlFor="contact-name" className="text-sm font-semibold">
                 Contact name

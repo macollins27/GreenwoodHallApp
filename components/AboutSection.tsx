@@ -18,7 +18,7 @@ export default function AboutSection() {
         <p className="text-slate-700">
           Rentals include the full hall, dance floor, reception layout support,
           and a dedicated manager on call. Bring in your dream catering team,
-          mobile bar, or DIY spread—our flexible policies support custom
+          mobile bar, or DIY spread - our flexible policies support custom
           celebrations of every size.
         </p>
         <div className="mt-6 inline-flex rounded-2xl border border-primary/15 bg-primaryLight/40 px-6 py-4 font-semibold text-primary">
@@ -28,4 +28,3 @@ export default function AboutSection() {
     </section>
   );
 }
-

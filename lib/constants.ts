@@ -81,6 +81,7 @@ export const FAQS = [
 
 export const NAV_LINKS = [
   { label: "About", href: "#about" },
+  { label: "Gallery", href: "#gallery" },
   { label: "Amenities", href: "#amenities" },
   { label: "Pricing", href: "#pricing" },
   { label: "Availability", href: "#availability" },

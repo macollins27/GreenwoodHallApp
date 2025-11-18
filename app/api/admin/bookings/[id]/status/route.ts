@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { ADMIN_COOKIE_NAME } from "@/lib/auth";
 
-const ALLOWED_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED"] as const;
+const EVENT_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED"] as const;
+const SHOWING_STATUSES = ["PENDING", "COMPLETED", "CANCELLED"] as const;
 
 type RouteContext = {
   params: Promise<{
@@ -19,16 +20,43 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
-  const status = body?.status as (typeof ALLOWED_STATUSES)[number] | undefined;
+  const status = body?.status;
 
-  if (!status || !ALLOWED_STATUSES.includes(status)) {
+  if (!status || typeof status !== "string") {
     return NextResponse.json(
-      { error: "Invalid status value." },
+      { error: "Status is required." },
       { status: 400 }
     );
   }
 
   try {
+    // First, get the booking to check its type
+    const existingBooking = await prisma.booking.findUnique({
+      where: { id },
+      select: { bookingType: true },
+    });
+
+    if (!existingBooking) {
+      return NextResponse.json(
+        { error: "Booking not found." },
+        { status: 404 }
+      );
+    }
+
+    // Validate status based on booking type
+    const allowedStatuses = existingBooking.bookingType === "SHOWING" 
+      ? SHOWING_STATUSES 
+      : EVENT_STATUSES;
+
+    if (!allowedStatuses.includes(status as any)) {
+      return NextResponse.json(
+        { 
+          error: `Invalid status for ${existingBooking.bookingType} booking. Allowed: ${allowedStatuses.join(", ")}` 
+        },
+        { status: 400 }
+      );
+    }
+
     const booking = await prisma.booking.update({
       where: { id },
       data: { status },

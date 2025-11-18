@@ -36,6 +36,44 @@ export default async function AdminProtectedLayout({
             <LogoutButton />
           </div>
         </div>
+        <nav className="border-t border-white/20 bg-primary/90">
+          <div className="mx-auto max-w-6xl px-4">
+            <ul className="flex gap-1">
+              <li>
+                <Link
+                  href="/admin"
+                  className="block px-4 py-3 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Dashboard
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/events/create"
+                  className="block px-4 py-3 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Create Event Booking
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/showings/create"
+                  className="block px-4 py-3 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Create Hall Showing
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/showing-availability"
+                  className="block px-4 py-3 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Showing Settings
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </nav>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>

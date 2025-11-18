@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import BookingWizardClient from "@/components/BookingWizardClient";
 import { Booking } from "@prisma/client";
@@ -39,6 +39,12 @@ export default async function BookingWizardPage({ params }: PageProps) {
 
   if (!booking) {
     notFound();
+  }
+
+  // CRITICAL: Prevent showings from entering event wizard/payment flow
+  if (booking.bookingType === "SHOWING") {
+    // Showings should never access the wizard - redirect to homepage
+    redirect("/");
   }
 
   const serializedBooking = serializeBooking(booking);

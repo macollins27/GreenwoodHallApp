@@ -31,6 +31,8 @@ type BookingDetail = {
   stripeCheckoutSessionId: string | null;
   stripePaymentStatus: string | null;
   amountPaidCents: number;
+  paymentMethod: string | null;
+  adminNotes: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -210,11 +212,23 @@ export default function BookingDetailClient({
               Payment
             </h2>
             <p className="text-sm text-slate-600">
-              Stripe status:{" "}
+              Payment method:{" "}
               <span className="font-semibold">
-                {booking.stripePaymentStatus ?? "Not started"}
+                {booking.paymentMethod === "STRIPE" ? "Online (Stripe)" :
+                 booking.paymentMethod === "CASH" ? "Cash" :
+                 booking.paymentMethod === "CHECK" ? "Check" :
+                 booking.paymentMethod === "COMP" ? "Complimentary" :
+                 booking.paymentMethod || "Stripe"}
               </span>
             </p>
+            {booking.paymentMethod === "STRIPE" && (
+              <p className="text-sm text-slate-600">
+                Stripe status:{" "}
+                <span className="font-semibold">
+                  {booking.stripePaymentStatus ?? "Not started"}
+                </span>
+              </p>
+            )}
             <p className="text-sm text-slate-600">
               Amount paid:{" "}
               <span className="font-semibold">
@@ -272,6 +286,16 @@ export default function BookingDetailClient({
             </div>
           )}
         </div>
+        {booking.adminNotes && (
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700">
+              Admin Notes (Internal Only)
+            </h2>
+            <p className="mt-2 whitespace-pre-line text-sm text-slate-700">
+              {booking.adminNotes}
+            </p>
+          </div>
+        )}
       </div>
       <div className="rounded-3xl bg-slate-900 p-4 text-xs text-slate-100">
         <p className="mb-2 font-semibold text-primaryLight">Debug JSON</p>
