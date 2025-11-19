@@ -16,8 +16,16 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 const formatCurrency = (cents: number) => currencyFormatter.format(cents / 100);
 
 const formatDate = (isoString: string) => {
+  // Parse without timezone conversion by extracting date parts
   const date = new Date(isoString);
-  return date.toLocaleDateString("en-US", {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  
+  // Create a new date in local timezone with these parts
+  const localDate = new Date(year, month, day);
+  
+  return localDate.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -26,8 +34,16 @@ const formatDate = (isoString: string) => {
 };
 
 const formatTime = (isoString: string) => {
+  // Parse without timezone conversion
   const date = new Date(isoString);
-  return date.toLocaleTimeString("en-US", {
+  const hours = date.getUTCHours();
+  const minutes = date.getUTCMinutes();
+  
+  // Create a date with these time components
+  const localTime = new Date();
+  localTime.setHours(hours, minutes, 0, 0);
+  
+  return localTime.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });

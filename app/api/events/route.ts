@@ -194,8 +194,8 @@ export async function POST(request: NextRequest) {
       data: {
         bookingType: "EVENT",
         eventDate: startOfDay,
-        startTime: new Date(`${eventDate}T${startTime}:00.000Z`),
-        endTime: new Date(`${eventDate}T${endTime}:00.000Z`),
+        startTime: new Date(year, month - 1, day, parseInt(startTime.split(':')[0]), parseInt(startTime.split(':')[1] || '0')),
+        endTime: new Date(year, month - 1, day, parseInt(endTime.split(':')[0]), parseInt(endTime.split(':')[1] || '0')),
         dayType,
         hourlyRateCents,
         eventHours: durationHours,

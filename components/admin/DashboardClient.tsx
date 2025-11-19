@@ -34,13 +34,22 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 });
 
 function formatDate(iso: string) {
-  return dateFormatter.format(new Date(iso));
+  // Parse without timezone conversion
+  const date = new Date(iso);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  
+  // Create local date with these parts
+  const localDate = new Date(year, month, day);
+  return dateFormatter.format(localDate);
 }
 
 function formatTime(iso: string) {
+  // Parse without timezone conversion
   const date = new Date(iso);
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const hours = date.getUTCHours().toString().padStart(2, "0");
+  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;
 }
 
