@@ -3,19 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminCalendar from "./AdminCalendar";
-import { formatDateForDisplay, formatTimeAsHHMM } from "@/lib/datetime";
+import {
+  formatDateForDisplay,
+  formatTimeForDisplay,
+  getBusinessDate,
+} from "@/lib/datetime";
 
-/**
- * Parse an ISO date string from the database and create a Date object
- * that represents the same local date (avoiding timezone shifts)
- */
-function parseLocalDate(isoString: string): Date {
-  const date = new Date(isoString);
-  return new Date(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate()
-  );
+function getBusinessDay(isoString: string): Date {
+  const date = getBusinessDate(isoString);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 type BookingRow = {
@@ -35,12 +32,6 @@ type BlockedDateRow = {
   date: string;
   reason: string;
 };
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -64,28 +55,25 @@ export default function DashboardClient({
   const [blockedReason, setBlockedReason] = useState("");
   const [formMessage, setFormMessage] = useState<string | null>(null);
   
-  // Determine initial view: URL param > localStorage > default to calendar
-  const getInitialView = (): "list" | "calendar" => {
+  // Dashboard view state - initialize with "calendar" to match SSR
+  const [dashboardView, setDashboardView] = useState<"list" | "calendar">("calendar");
+  
+  // Hydrate view preference from URL or localStorage after mount
+  useEffect(() => {
     const urlView = searchParams.get("view");
     if (urlView === "list" || urlView === "calendar") {
-      return urlView;
+      setDashboardView(urlView);
+      return;
     }
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("adminDashboardView");
-      if (saved === "list" || saved === "calendar") {
-        return saved;
-      }
+    const saved = localStorage.getItem("adminDashboardView");
+    if (saved === "list" || saved === "calendar") {
+      setDashboardView(saved);
     }
-    return "calendar"; // Default to calendar
-  };
-  
-  const [dashboardView, setDashboardView] = useState<"list" | "calendar">(getInitialView());
+  }, [searchParams]);
   
   // Persist view preference
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("adminDashboardView", dashboardView);
-    }
+    localStorage.setItem("adminDashboardView", dashboardView);
     // Update URL without causing navigation
     const url = new URL(window.location.href);
     url.searchParams.set("view", dashboardView);
@@ -142,7 +130,7 @@ export default function DashboardClient({
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       filtered = filtered.filter(b => {
-        const bookingDate = parseLocalDate(b.eventDate);
+        const bookingDate = getBusinessDay(b.eventDate);
         return bookingDate >= today && bookingDate < tomorrow;
       });
     } else if (filterDateRange === "this-week") {
@@ -150,20 +138,20 @@ export default function DashboardClient({
       endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
       endOfWeek.setHours(23, 59, 59, 999);
       filtered = filtered.filter(b => {
-        const bookingDate = parseLocalDate(b.eventDate);
+        const bookingDate = getBusinessDay(b.eventDate);
         return bookingDate >= today && bookingDate <= endOfWeek;
       });
     } else if (filterDateRange === "next-7-days") {
       const next7 = new Date(today);
       next7.setDate(next7.getDate() + 7);
       filtered = filtered.filter(b => {
-        const bookingDate = parseLocalDate(b.eventDate);
+        const bookingDate = getBusinessDay(b.eventDate);
         return bookingDate >= today && bookingDate < next7;
       });
     } else if (filterDateRange === "this-month") {
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
       filtered = filtered.filter(b => {
-        const bookingDate = parseLocalDate(b.eventDate);
+        const bookingDate = getBusinessDay(b.eventDate);
         return bookingDate >= today && bookingDate <= endOfMonth;
       });
     }
@@ -174,14 +162,14 @@ export default function DashboardClient({
       let comparison = 0;
       
       if (sortColumn === "date") {
-        comparison = parseLocalDate(a.eventDate).getTime() - parseLocalDate(b.eventDate).getTime();
+        comparison = getBusinessDay(a.eventDate).getTime() - getBusinessDay(b.eventDate).getTime();
       } else if (sortColumn === "type") {
         comparison = a.bookingType.localeCompare(b.bookingType);
       } else if (sortColumn === "status") {
         comparison = a.status.localeCompare(b.status);
       } else if (sortColumn === "created") {
         // We don't have createdAt in the data, use eventDate as fallback
-        comparison = parseLocalDate(a.eventDate).getTime() - parseLocalDate(b.eventDate).getTime();
+        comparison = getBusinessDay(a.eventDate).getTime() - getBusinessDay(b.eventDate).getTime();
       }
       
       return sortDirection === "asc" ? comparison : -comparison;
@@ -468,10 +456,16 @@ export default function DashboardClient({
                   className="border-b border-slate-100 last:border-none hover:bg-slate-50 transition"
                 >
                   <td className="py-3 pr-4 font-medium text-textMain">
-                    {formatDateForDisplay(booking.eventDate, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {formatDateForDisplay(booking.eventDate ?? booking.startTime, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
                   </td>
                   <td className="py-3 pr-4">
-                    {formatTimeAsHHMM(booking.startTime)} – {formatTimeAsHHMM(booking.endTime)}
+                    {booking.startTime && booking.endTime
+                      ? `${formatTimeForDisplay(booking.startTime)} – ${formatTimeForDisplay(booking.endTime)}`
+                      : "Time not set"}
                   </td>
                   <td className="py-3 pr-4">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${

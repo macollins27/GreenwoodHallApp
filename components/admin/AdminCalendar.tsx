@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatTimeAsHHMM } from "@/lib/datetime";
+import { formatTimeForDisplay, getBusinessDate } from "@/lib/datetime";
 
 type CalendarBooking = {
   id: string;
@@ -54,17 +54,10 @@ function isSameDay(date1: Date, date2: Date) {
   );
 }
 
-/**
- * Parse an ISO date string from the database and create a Date object
- * that represents the same local date (avoiding timezone shifts)
- */
-function parseLocalDate(isoString: string): Date {
-  const date = new Date(isoString);
-  return new Date(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate()
-  );
+function getBusinessDay(isoString: string): Date {
+  const date = getBusinessDate(isoString);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function getMonthDays(year: number, month: number) {
@@ -197,7 +190,7 @@ export default function AdminCalendar() {
   function getBookingsForDay(day: Date): CalendarBooking[] {
     if (!calendarData) return [];
     return calendarData.bookings.filter((booking) => {
-      const bookingDate = parseLocalDate(booking.eventDate);
+      const bookingDate = getBusinessDay(booking.eventDate);
       return isSameDay(bookingDate, day);
     });
   }
@@ -206,7 +199,7 @@ export default function AdminCalendar() {
     if (!calendarData) return null;
     return (
       calendarData.blockedDates.find((blocked) => {
-        const blockedDate = parseLocalDate(blocked.date);
+        const blockedDate = getBusinessDay(blocked.date);
         return isSameDay(blockedDate, day);
       }) || null
     );
@@ -274,7 +267,9 @@ export default function AdminCalendar() {
       >
         <div className="flex items-center justify-between gap-1">
           <span className="truncate font-semibold">
-            {isEvent ? `Event ${formatTimeAsHHMM(booking.startTime)}` : `Showing ${formatTimeAsHHMM(booking.startTime)}`}
+            {isEvent
+              ? `Event ${formatTimeForDisplay(booking.startTime)}`
+              : `Showing ${formatTimeForDisplay(booking.startTime)}`}
           </span>
           <div className="flex items-center gap-1">
             {booking.status === "PENDING" && (
@@ -304,10 +299,9 @@ export default function AdminCalendar() {
               </p>
               <p>
                 <strong>{isEvent ? "Time:" : "Appointment:"}</strong>{" "}
-                {isEvent 
-                  ? `${formatTimeAsHHMM(booking.startTime)} – ${formatTimeAsHHMM(booking.endTime)}`
-                  : formatTimeAsHHMM(booking.startTime)
-                }
+                {isEvent
+                  ? `${formatTimeForDisplay(booking.startTime)} – ${formatTimeForDisplay(booking.endTime)}`
+                  : formatTimeForDisplay(booking.startTime)}
               </p>
               <p>
                 <strong>Contact:</strong> {booking.contactName}

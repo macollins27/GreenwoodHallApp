@@ -47,6 +47,90 @@ function coerceToDate(input: Date | string): Date {
   return typeof input === 'string' ? new Date(input) : input;
 }
 
+type DatePartType = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second';
+
+const BUSINESS_DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TIMEZONE,
+  calendar: 'iso8601',
+  numberingSystem: 'latn',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+type BusinessDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function getBusinessDateTimeParts(date: Date): BusinessDateParts {
+  const parts = BUSINESS_DATETIME_FORMATTER.formatToParts(date);
+  const getValue = (type: DatePartType) =>
+    parts.find((part) => part.type === type)?.value ?? '0';
+
+  return {
+    year: Number(getValue('year')),
+    month: Number(getValue('month')),
+    day: Number(getValue('day')),
+    hour: Number(getValue('hour')),
+    minute: Number(getValue('minute')),
+    second: Number(getValue('second')),
+  };
+}
+
+function constructBusinessDate(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0
+): Date {
+  const targetMillis = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  let utcMillis = targetMillis;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const businessParts = getBusinessDateTimeParts(new Date(utcMillis));
+    const actualMillis = Date.UTC(
+      businessParts.year,
+      businessParts.month - 1,
+      businessParts.day,
+      businessParts.hour,
+      businessParts.minute,
+      0,
+      0
+    );
+    const diff = targetMillis - actualMillis;
+    if (diff === 0) {
+      break;
+    }
+    utcMillis += diff;
+  }
+
+  return new Date(utcMillis);
+}
+
+export function getBusinessDate(input: Date | string): Date {
+  const date = coerceToDate(input);
+  const parts = getBusinessDateTimeParts(date);
+  return new Date(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    0
+  );
+}
+
 /**
  * Parse a date string in YYYY-MM-DD format and return year, month (1-12), and day
  */
@@ -103,9 +187,7 @@ export function createLocalDate(dateStr: string): Date | null {
   if (!parsed) return null;
 
   const { year, month, day } = parsed;
-  
-  // Month is 0-indexed in Date constructor (0 = January)
-  return new Date(year, month - 1, day, 0, 0, 0, 0);
+  return constructBusinessDate(year, month, day);
 }
 
 /**
@@ -124,9 +206,7 @@ export function createLocalDateTime(dateStr: string, timeStr: string): Date | nu
 
   const { year, month, day } = parsedDate;
   const { hours, minutes } = parsedTime;
-  
-  // Month is 0-indexed in Date constructor (0 = January)
-  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return constructBusinessDate(year, month, day, hours, minutes);
 }
 
 /**

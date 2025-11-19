@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 type EventBooking = {
   id: string;
@@ -51,18 +52,6 @@ type EventBooking = {
   updatedAt: string;
 };
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-});
-
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -80,6 +69,21 @@ export default function EventDetailClient({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const eventDateSource = booking.eventDate ?? booking.startTime ?? null;
+  const eventDateLabel = eventDateSource
+    ? formatDateForDisplay(eventDateSource)
+    : "Date not set";
+  const startTimeLabel = booking.startTime
+    ? formatTimeForDisplay(booking.startTime)
+    : null;
+  const endTimeLabel = booking.endTime
+    ? formatTimeForDisplay(booking.endTime)
+    : null;
+  const eventTimeLabel =
+    startTimeLabel && endTimeLabel
+      ? `${startTimeLabel} – ${endTimeLabel}`
+      : "Time not set";
 
   async function updateStatus(status: "PENDING" | "CONFIRMED" | "CANCELLED") {
     setIsUpdating(true);
@@ -99,9 +103,6 @@ export default function EventDetailClient({
     setIsUpdating(false);
   }
 
-  const eventDate = new Date(booking.eventDate);
-  const startTime = new Date(booking.startTime);
-  const endTime = new Date(booking.endTime);
   const isPaidInFull =
     booking.stripePaymentStatus === "paid" &&
     booking.amountPaidCents >= booking.totalCents;
@@ -122,10 +123,10 @@ export default function EventDetailClient({
               Event Booking
             </p>
             <h1 className="text-2xl font-semibold text-textMain">
-              {booking.eventType} on {dateFormatter.format(eventDate)}
+              {booking.eventType} on {eventDateLabel}
             </h1>
             <p className="text-sm text-slate-600">
-              {timeFormatter.format(startTime)} – {timeFormatter.format(endTime)} ({booking.eventHours} hours)
+              {eventTimeLabel} ({booking.eventHours} hours)
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -202,13 +203,11 @@ export default function EventDetailClient({
             )}
             <div>
               <dt className="font-semibold">Event Date</dt>
-              <dd>{dateFormatter.format(eventDate)}</dd>
+              <dd>{eventDateLabel}</dd>
             </div>
             <div>
               <dt className="font-semibold">Event Time</dt>
-              <dd>
-                {timeFormatter.format(startTime)} – {timeFormatter.format(endTime)}
-              </dd>
+              <dd>{eventTimeLabel}</dd>
             </div>
             <div>
               <dt className="font-semibold">Event Hours</dt>
@@ -400,7 +399,7 @@ export default function EventDetailClient({
                   <dt className="font-semibold">Accepted At</dt>
                   <dd>
                     {booking.contractAcceptedAt
-                      ? new Date(booking.contractAcceptedAt).toLocaleString()
+                      ? formatDateForDisplay(booking.contractAcceptedAt, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
                       : "—"}
                   </dd>
                 </div>

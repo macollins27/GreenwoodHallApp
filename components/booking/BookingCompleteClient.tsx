@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BUSINESS_PHONE } from "@/lib/constants";
+import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 type BookingCompleteClientProps = {
   sessionId: string | null;
@@ -26,24 +27,6 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 
 const formatCurrency = (cents: number) => currencyFormatter.format(cents / 100);
 
-const formatDate = (isoString: string) => {
-  const date = new Date(isoString);
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
-
-const formatTime = (isoString: string) => {
-  const date = new Date(isoString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
 export default function BookingCompleteClient({
   sessionId,
 }: BookingCompleteClientProps) {
@@ -54,6 +37,17 @@ export default function BookingCompleteClient({
     sessionId ?? null
   );
   const [hasTriedUrlFallback, setHasTriedUrlFallback] = useState(false);
+
+  const bookingDateSource = booking?.eventDate ?? booking?.startTime ?? null;
+  const bookingDateLabel = bookingDateSource
+    ? formatDateForDisplay(bookingDateSource)
+    : null;
+  const bookingTimeRangeLabel =
+    booking?.startTime && booking?.endTime
+      ? `${formatTimeForDisplay(booking.startTime)} – ${formatTimeForDisplay(
+          booking.endTime
+        )}`
+      : null;
 
   // Fallback: try to read session_id from URL if not provided via props
   useEffect(() => {
@@ -198,11 +192,11 @@ export default function BookingCompleteClient({
                 <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                   <div>
                     <span className="font-medium">Date:</span>{" "}
-                    {formatDate(booking.eventDate)}
+                    {bookingDateLabel ?? "Date not set"}
                   </div>
                   <div>
                     <span className="font-medium">Time:</span>{" "}
-                    {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                    {bookingTimeRangeLabel ?? "Time not set"}
                   </div>
                   <div>
                     <span className="font-medium">Type:</span>{" "}

@@ -75,6 +75,13 @@ export async function POST(request: NextRequest) {
       addOns = [],
     } = body;
 
+    console.log("[TZ DEBUG] raw event booking input", {
+      eventDate,
+      startTime,
+      endTime,
+      bookingType: body?.bookingType ?? "EVENT",
+    });
+
     // Validate required fields
     if (!eventDate || !startTime || !endTime || !eventType || !contactName || !contactEmail) {
       return NextResponse.json(
@@ -201,6 +208,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log("[TZ DEBUG] event booking Date objects", {
+      eventDate: eventDateObj,
+      eventDateIso: eventDateObj?.toISOString?.(),
+      startTime: startTimeObj,
+      startTimeIso: startTimeObj?.toISOString?.(),
+      endTime: endTimeObj,
+      endTimeIso: endTimeObj?.toISOString?.(),
+    });
 
     // Create booking
     const booking = await prisma.booking.create({

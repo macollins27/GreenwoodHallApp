@@ -64,6 +64,21 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
 
+  const dateDisplaySource = booking.eventDate ?? booking.startTime ?? null;
+  const dateLabel = dateDisplaySource
+    ? formatDateForDisplay(dateDisplaySource)
+    : "Date not set";
+  const startTimeLabel = booking.startTime
+    ? formatTimeForDisplay(booking.startTime)
+    : null;
+  const endTimeLabel = booking.endTime
+    ? formatTimeForDisplay(booking.endTime)
+    : null;
+  const timeRangeLabel =
+    startTimeLabel && endTimeLabel
+      ? `${startTimeLabel} – ${endTimeLabel}`
+      : "Time not set";
+
   // Step 1 state
   const [rectTables, setRectTables] = useState<number | null>(
     booking.rectTablesRequested
@@ -244,11 +259,11 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
             <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
               <div>
                 <span className="font-medium">Date:</span>{" "}
-                {formatDateForDisplay(booking.eventDate)}
+                {dateLabel}
               </div>
               <div>
                 <span className="font-medium">Time:</span>{" "}
-                {formatTimeForDisplay(booking.startTime)} – {formatTimeForDisplay(booking.endTime)}
+                {timeRangeLabel}
               </div>
               <div>
                 <span className="font-medium">Type:</span> {booking.eventType}
@@ -395,8 +410,7 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
           <div className="rounded-2xl border border-primary/20 bg-primaryLight/20 p-4 text-sm">
             <p className="font-semibold text-primary">Event Details</p>
             <p className="mt-1 text-slate-700">
-              {formatDateForDisplay(booking.eventDate)} • {formatTimeForDisplay(booking.startTime)} –{" "}
-              {formatTimeForDisplay(booking.endTime)} • {booking.eventType}
+              {dateLabel} • {timeRangeLabel} • {booking.eventType}
             </p>
           </div>
 
