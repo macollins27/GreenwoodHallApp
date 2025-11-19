@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       where: {
         eventDate: {
           gte: start,
-          lte: end,
+          lt: end,
         },
       },
       orderBy: {
