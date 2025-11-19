@@ -95,9 +95,11 @@ export async function POST(request: NextRequest) {
 
     // Parse date to get start/end of day for range queries
     const [year, month, day] = eventDate.split('-').map(Number);
-    const startOfDay = new Date(year, month - 1, day);
+    
+    // Create date in UTC to avoid timezone issues
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
 
     // Validate date is not blocked
     const blockedDate = await prisma.blockedDate.findFirst({
@@ -192,8 +194,8 @@ export async function POST(request: NextRequest) {
       data: {
         bookingType: "EVENT",
         eventDate: startOfDay,
-        startTime: new Date(`${eventDate}T${startTime}:00`),
-        endTime: new Date(`${eventDate}T${endTime}:00`),
+        startTime: new Date(`${eventDate}T${startTime}:00.000Z`),
+        endTime: new Date(`${eventDate}T${endTime}:00.000Z`),
         dayType,
         hourlyRateCents,
         eventHours: durationHours,
