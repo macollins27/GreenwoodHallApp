@@ -36,21 +36,16 @@
  * 
  * DISPLAY STRATEGY:
  * -----------------
- * When displaying dates from the database, extract UTC components and reconstruct
- * as local dates to prevent timezone conversion:
- * 
- * const date = new Date(isoString);  // From database
- * const localDate = new Date(
- *   date.getUTCFullYear(),
- *   date.getUTCMonth(), 
- *   date.getUTCDate(),
- *   date.getUTCHours(),
- *   date.getUTCMinutes()
- * );
- * 
- * This ensures "2025-12-05T12:00:00.000Z" (stored) displays as "Dec 5, 12:00 PM"
- * not "Dec 4, 7:00 PM" (which would happen with direct timezone conversion in EST).
+ * Treat ISO strings from Postgres as instants in time and format them directly
+ * in America/New_York via Intl.DateTimeFormat with an explicit timeZone.
+ * This avoids double-applying timezone offsets now that storage is correct UTC.
  */
+
+export const BUSINESS_TIMEZONE = 'America/New_York';
+
+function coerceToDate(input: Date | string): Date {
+  return typeof input === 'string' ? new Date(input) : input;
+}
 
 /**
  * Parse a date string in YYYY-MM-DD format and return year, month (1-12), and day
@@ -163,19 +158,12 @@ export function formatDateForDisplay(
     day: 'numeric',
   }
 ): string {
-  const date = typeof input === 'string' ? new Date(input) : input;
-  
-  // Extract UTC components and create local date to prevent timezone conversion
-  const localDate = new Date(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate(),
-    date.getUTCHours(),
-    date.getUTCMinutes(),
-    date.getUTCSeconds()
-  );
-  
-  return localDate.toLocaleDateString('en-US', options);
+  const date = coerceToDate(input);
+
+  return new Intl.DateTimeFormat('en-US', {
+    ...options,
+    timeZone: BUSINESS_TIMEZONE,
+  }).format(date);
 }
 
 /**
@@ -191,15 +179,15 @@ export function formatTimeForDisplay(
   options: Intl.DateTimeFormatOptions = {
     hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
   }
 ): string {
-  const date = typeof input === 'string' ? new Date(input) : input;
-  
-  // Extract UTC components and create local time to prevent timezone conversion
-  const localTime = new Date();
-  localTime.setHours(date.getUTCHours(), date.getUTCMinutes(), 0, 0);
-  
-  return localTime.toLocaleTimeString('en-US', options);
+  const date = coerceToDate(input);
+
+  return new Intl.DateTimeFormat('en-US', {
+    ...options,
+    timeZone: BUSINESS_TIMEZONE,
+  }).format(date);
 }
 
 /**
@@ -209,10 +197,14 @@ export function formatTimeForDisplay(
  * @returns Time string in HH:MM format
  */
 export function formatTimeAsHHMM(input: Date | string): string {
-  const date = typeof input === 'string' ? new Date(input) : input;
-  const hours = date.getUTCHours().toString().padStart(2, '0');
-  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
+  const date = coerceToDate(input);
+
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIMEZONE,
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 /**
