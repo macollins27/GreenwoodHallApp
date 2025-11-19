@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { PRICING_DETAILS } from "@/lib/constants";
+import {
+  createLocalDate,
+  createLocalDateTime,
+  getDayBoundaries,
+  getLocalWeekday,
+  parseTimeString,
+} from "@/lib/datetime";
 
 const prisma = new PrismaClient();
-
-function getLocalWeekdayFromDateString(dateStr: string): number | null {
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return null;
-
-  const [yearStr, monthStr, dayStr] = parts;
-  const year = parseInt(yearStr, 10);
-  const monthIndex = parseInt(monthStr, 10) - 1;
-  const day = parseInt(dayStr, 10);
-
-  if (Number.isNaN(year) || Number.isNaN(monthIndex) || Number.isNaN(day)) {
-    return null;
-  }
-
-  const localDate = new Date(year, monthIndex, day);
-  return localDate.getDay();
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,12 +84,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse date to get start/end of day for range queries
-    const [year, month, day] = eventDate.split('-').map(Number);
+    const boundaries = getDayBoundaries(eventDate);
+    if (!boundaries) {
+      return NextResponse.json(
+        { error: "Invalid event date format" },
+        { status: 400 }
+      );
+    }
     
-    // Create date in UTC to avoid timezone issues
-    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+    const { startOfDay, endOfDay } = boundaries;
 
     // Validate date is not blocked
     const blockedDate = await prisma.blockedDate.findFirst({
@@ -140,12 +133,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse times
-    const [startHourStr] = startTime.split(":");
-    const [endHourStr] = endTime.split(":");
-    const startHour = parseInt(startHourStr, 10);
-    const endHour = parseInt(endHourStr, 10);
+    const parsedStartTime = parseTimeString(startTime);
+    const parsedEndTime = parseTimeString(endTime);
 
-    if (Number.isNaN(startHour) || Number.isNaN(endHour) || endHour <= startHour) {
+    if (!parsedStartTime || !parsedEndTime) {
+      return NextResponse.json(
+        { error: "Invalid time format" },
+        { status: 400 }
+      );
+    }
+
+    const startHour = parsedStartTime.hours;
+    const endHour = parsedEndTime.hours;
+
+    if (endHour <= startHour) {
       return NextResponse.json(
         { error: "Invalid time selection" },
         { status: 400 }
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate weekend minimum duration
-    const weekday = getLocalWeekdayFromDateString(eventDate);
+    const weekday = getLocalWeekday(eventDate);
     if (weekday === null) {
       return NextResponse.json(
         { error: "Invalid event date" },
@@ -189,13 +190,25 @@ export async function POST(request: NextRequest) {
     
     const totalCents = baseAmountCents + extraSetupCents + depositCents + addOnsTotal;
 
+    // Create date/time objects for storage
+    const eventDateObj = createLocalDate(eventDate);
+    const startTimeObj = createLocalDateTime(eventDate, startTime);
+    const endTimeObj = createLocalDateTime(eventDate, endTime);
+
+    if (!eventDateObj || !startTimeObj || !endTimeObj) {
+      return NextResponse.json(
+        { error: "Invalid date or time values" },
+        { status: 400 }
+      );
+    }
+
     // Create booking
     const booking = await prisma.booking.create({
       data: {
         bookingType: "EVENT",
-        eventDate: startOfDay,
-        startTime: new Date(year, month - 1, day, parseInt(startTime.split(':')[0]), parseInt(startTime.split(':')[1] || '0')),
-        endTime: new Date(year, month - 1, day, parseInt(endTime.split(':')[0]), parseInt(endTime.split(':')[1] || '0')),
+        eventDate: eventDateObj,
+        startTime: startTimeObj,
+        endTime: endTimeObj,
         dayType,
         hourlyRateCents,
         eventHours: durationHours,

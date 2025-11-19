@@ -3,6 +3,20 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminCalendar from "./AdminCalendar";
+import { formatDateForDisplay, formatTimeAsHHMM } from "@/lib/datetime";
+
+/**
+ * Parse an ISO date string from the database and create a Date object
+ * that represents the same local date (avoiding timezone shifts)
+ */
+function parseLocalDate(isoString: string): Date {
+  const date = new Date(isoString);
+  return new Date(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate()
+  );
+}
 
 type BookingRow = {
   id: string;
@@ -32,26 +46,6 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
-
-function formatDate(iso: string) {
-  // Parse without timezone conversion
-  const date = new Date(iso);
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  
-  // Create local date with these parts
-  const localDate = new Date(year, month, day);
-  return dateFormatter.format(localDate);
-}
-
-function formatTime(iso: string) {
-  // Parse without timezone conversion
-  const date = new Date(iso);
-  const hours = date.getUTCHours().toString().padStart(2, "0");
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
 
 function formatCurrency(cents: number) {
   return currencyFormatter.format(cents / 100);
@@ -148,7 +142,7 @@ export default function DashboardClient({
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       filtered = filtered.filter(b => {
-        const bookingDate = new Date(b.eventDate);
+        const bookingDate = parseLocalDate(b.eventDate);
         return bookingDate >= today && bookingDate < tomorrow;
       });
     } else if (filterDateRange === "this-week") {
@@ -156,20 +150,20 @@ export default function DashboardClient({
       endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
       endOfWeek.setHours(23, 59, 59, 999);
       filtered = filtered.filter(b => {
-        const bookingDate = new Date(b.eventDate);
+        const bookingDate = parseLocalDate(b.eventDate);
         return bookingDate >= today && bookingDate <= endOfWeek;
       });
     } else if (filterDateRange === "next-7-days") {
       const next7 = new Date(today);
       next7.setDate(next7.getDate() + 7);
       filtered = filtered.filter(b => {
-        const bookingDate = new Date(b.eventDate);
+        const bookingDate = parseLocalDate(b.eventDate);
         return bookingDate >= today && bookingDate < next7;
       });
     } else if (filterDateRange === "this-month") {
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
       filtered = filtered.filter(b => {
-        const bookingDate = new Date(b.eventDate);
+        const bookingDate = parseLocalDate(b.eventDate);
         return bookingDate >= today && bookingDate <= endOfMonth;
       });
     }
@@ -180,14 +174,14 @@ export default function DashboardClient({
       let comparison = 0;
       
       if (sortColumn === "date") {
-        comparison = new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+        comparison = parseLocalDate(a.eventDate).getTime() - parseLocalDate(b.eventDate).getTime();
       } else if (sortColumn === "type") {
         comparison = a.bookingType.localeCompare(b.bookingType);
       } else if (sortColumn === "status") {
         comparison = a.status.localeCompare(b.status);
       } else if (sortColumn === "created") {
         // We don't have createdAt in the data, use eventDate as fallback
-        comparison = new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+        comparison = parseLocalDate(a.eventDate).getTime() - parseLocalDate(b.eventDate).getTime();
       }
       
       return sortDirection === "asc" ? comparison : -comparison;
@@ -474,10 +468,10 @@ export default function DashboardClient({
                   className="border-b border-slate-100 last:border-none hover:bg-slate-50 transition"
                 >
                   <td className="py-3 pr-4 font-medium text-textMain">
-                    {formatDate(booking.eventDate)}
+                    {formatDateForDisplay(booking.eventDate, { weekday: 'short', month: 'short', day: 'numeric' })}
                   </td>
                   <td className="py-3 pr-4">
-                    {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                    {formatTimeAsHHMM(booking.startTime)} – {formatTimeAsHHMM(booking.endTime)}
                   </td>
                   <td className="py-3 pr-4">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
@@ -575,7 +569,7 @@ export default function DashboardClient({
             >
               <div>
                 <p className="font-semibold text-textMain">
-                  {formatDate(blocked.date)}
+                  {formatDateForDisplay(blocked.date, { weekday: 'short', month: 'short', day: 'numeric' })}
                 </p>
                 {blocked.reason && (
                   <p className="text-xs text-slate-600">{blocked.reason}</p>

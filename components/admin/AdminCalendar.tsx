@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatTimeAsHHMM } from "@/lib/datetime";
 
 type CalendarBooking = {
   id: string;
@@ -36,11 +37,6 @@ type ViewMode = "month" | "week";
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -50,15 +46,24 @@ function formatCurrency(cents: number) {
   return currencyFormatter.format(cents / 100);
 }
 
-function formatTime(isoString: string) {
-  return timeFormatter.format(new Date(isoString));
-}
-
 function isSameDay(date1: Date, date2: Date) {
   return (
     date1.getFullYear() === date2.getFullYear() &&
     date1.getMonth() === date2.getMonth() &&
     date1.getDate() === date2.getDate()
+  );
+}
+
+/**
+ * Parse an ISO date string from the database and create a Date object
+ * that represents the same local date (avoiding timezone shifts)
+ */
+function parseLocalDate(isoString: string): Date {
+  const date = new Date(isoString);
+  return new Date(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate()
   );
 }
 
@@ -192,7 +197,7 @@ export default function AdminCalendar() {
   function getBookingsForDay(day: Date): CalendarBooking[] {
     if (!calendarData) return [];
     return calendarData.bookings.filter((booking) => {
-      const bookingDate = new Date(booking.eventDate);
+      const bookingDate = parseLocalDate(booking.eventDate);
       return isSameDay(bookingDate, day);
     });
   }
@@ -201,7 +206,7 @@ export default function AdminCalendar() {
     if (!calendarData) return null;
     return (
       calendarData.blockedDates.find((blocked) => {
-        const blockedDate = new Date(blocked.date);
+        const blockedDate = parseLocalDate(blocked.date);
         return isSameDay(blockedDate, day);
       }) || null
     );
@@ -269,7 +274,7 @@ export default function AdminCalendar() {
       >
         <div className="flex items-center justify-between gap-1">
           <span className="truncate font-semibold">
-            {isEvent ? `Event ${formatTime(booking.startTime)}` : `Showing ${formatTime(booking.startTime)}`}
+            {isEvent ? `Event ${formatTimeAsHHMM(booking.startTime)}` : `Showing ${formatTimeAsHHMM(booking.startTime)}`}
           </span>
           <div className="flex items-center gap-1">
             {booking.status === "PENDING" && (
@@ -300,8 +305,8 @@ export default function AdminCalendar() {
               <p>
                 <strong>{isEvent ? "Time:" : "Appointment:"}</strong>{" "}
                 {isEvent 
-                  ? `${formatTime(booking.startTime)} – ${formatTime(booking.endTime)}`
-                  : formatTime(booking.startTime)
+                  ? `${formatTimeAsHHMM(booking.startTime)} – ${formatTimeAsHHMM(booking.endTime)}`
+                  : formatTimeAsHHMM(booking.startTime)
                 }
               </p>
               <p>

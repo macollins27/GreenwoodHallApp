@@ -7,6 +7,7 @@ import {
   CONTRACT_SECTIONS,
 } from "@/lib/contract";
 import { AVAILABLE_TABLES, BUSINESS_PHONE } from "@/lib/constants";
+import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -14,40 +15,6 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const formatCurrency = (cents: number) => currencyFormatter.format(cents / 100);
-
-const formatDate = (isoString: string) => {
-  // Parse without timezone conversion by extracting date parts
-  const date = new Date(isoString);
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  
-  // Create a new date in local timezone with these parts
-  const localDate = new Date(year, month, day);
-  
-  return localDate.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
-
-const formatTime = (isoString: string) => {
-  // Parse without timezone conversion
-  const date = new Date(isoString);
-  const hours = date.getUTCHours();
-  const minutes = date.getUTCMinutes();
-  
-  // Create a date with these time components
-  const localTime = new Date();
-  localTime.setHours(hours, minutes, 0, 0);
-  
-  return localTime.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
 
 type BookingWizardProps = {
   booking: {
@@ -277,11 +244,11 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
             <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
               <div>
                 <span className="font-medium">Date:</span>{" "}
-                {formatDate(booking.eventDate)}
+                {formatDateForDisplay(booking.eventDate)}
               </div>
               <div>
                 <span className="font-medium">Time:</span>{" "}
-                {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                {formatTimeForDisplay(booking.startTime)} – {formatTimeForDisplay(booking.endTime)}
               </div>
               <div>
                 <span className="font-medium">Type:</span> {booking.eventType}
@@ -428,8 +395,8 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
           <div className="rounded-2xl border border-primary/20 bg-primaryLight/20 p-4 text-sm">
             <p className="font-semibold text-primary">Event Details</p>
             <p className="mt-1 text-slate-700">
-              {formatDate(booking.eventDate)} • {formatTime(booking.startTime)} –{" "}
-              {formatTime(booking.endTime)} • {booking.eventType}
+              {formatDateForDisplay(booking.eventDate)} • {formatTimeForDisplay(booking.startTime)} –{" "}
+              {formatTimeForDisplay(booking.endTime)} • {booking.eventType}
             </p>
           </div>
 
