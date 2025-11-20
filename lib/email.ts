@@ -1,5 +1,6 @@
 import { ServerClient } from "postmark";
 import type { Booking } from "@prisma/client";
+import { formatDateForDisplay, formatTimeForDisplay } from "./datetime";
 
 // Validate environment variables
 const POSTMARK_SERVER_TOKEN = process.env.POSTMARK_SERVER_TOKEN;
@@ -40,24 +41,6 @@ const formatCurrency = (cents: number): string => {
   }).format(cents / 100);
 };
 
-// Format date helper
-const formatDate = (date: Date): string => {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-};
-
-// Format time helper
-const formatTime = (date: Date): string => {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-};
-
 /**
  * Send booking confirmation email for EVENT bookings
  */
@@ -72,10 +55,6 @@ export async function sendBookingConfirmationEmail(
   }
 
   try {
-    const eventDate = new Date(booking.eventDate);
-    const startTime = new Date(booking.startTime);
-    const endTime = new Date(booking.endTime);
-
     // Build setup details section
     let setupDetails = "";
     if (
@@ -123,8 +102,8 @@ Your Greenwood Hall event is confirmed!
 BOOKING DETAILS:
 • Booking Type: ${booking.bookingType}
 • Event Type: ${booking.eventType || "Not specified"}
-• Date: ${formatDate(eventDate)}
-• Time: ${formatTime(startTime)} - ${formatTime(endTime)}
+• Date: ${formatDateForDisplay(booking.eventDate)}
+• Time: ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}
 • Guest Count: ${booking.guestCount || "Not specified"}
 ${setupDetails}${addOnsDetails}
 
@@ -166,8 +145,8 @@ Booking ID: ${booking.id}
   <h2>Booking Details</h2>
   <div class="detail-row"><span class="label">Booking Type:</span> ${booking.bookingType}</div>
   <div class="detail-row"><span class="label">Event Type:</span> ${booking.eventType || "Not specified"}</div>
-  <div class="detail-row"><span class="label">Date:</span> ${formatDate(eventDate)}</div>
-  <div class="detail-row"><span class="label">Time:</span> ${formatTime(startTime)} - ${formatTime(endTime)}</div>
+  <div class="detail-row"><span class="label">Date:</span> ${formatDateForDisplay(booking.eventDate)}</div>
+  <div class="detail-row"><span class="label">Time:</span> ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}</div>
   <div class="detail-row"><span class="label">Guest Count:</span> ${booking.guestCount || "Not specified"}</div>
   
   ${
@@ -227,7 +206,7 @@ Booking ID: ${booking.id}
     await postmarkClient.sendEmail({
       From: FROM_EMAIL,
       To: booking.contactEmail,
-      Subject: `Your Greenwood Hall event is confirmed – ${formatDate(eventDate)}`,
+      Subject: `Your Greenwood Hall event is confirmed – ${formatDateForDisplay(booking.eventDate)}`,
       TextBody: textBody,
       HtmlBody: htmlBody,
       MessageStream: "outbound",
@@ -255,17 +234,13 @@ export async function sendShowingConfirmationEmail(
   }
 
   try {
-    const eventDate = new Date(booking.eventDate);
-    const startTime = new Date(booking.startTime);
-    const endTime = new Date(booking.endTime);
-
     const textBody = `
 Your Greenwood Hall showing is scheduled!
 
 SHOWING DETAILS:
 • Booking Type: ${booking.bookingType}
-• Date: ${formatDate(eventDate)}
-• Time: ${formatTime(startTime)} - ${formatTime(endTime)}
+• Date: ${formatDateForDisplay(booking.eventDate)}
+• Time: ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}
 
 VENUE INFORMATION:
 Greenwood Hall
@@ -298,8 +273,8 @@ Booking ID: ${booking.id}
   
   <h2>Showing Details</h2>
   <div class="detail-row"><span class="label">Booking Type:</span> ${booking.bookingType}</div>
-  <div class="detail-row"><span class="label">Date:</span> ${formatDate(eventDate)}</div>
-  <div class="detail-row"><span class="label">Time:</span> ${formatTime(startTime)} - ${formatTime(endTime)}</div>
+  <div class="detail-row"><span class="label">Date:</span> ${formatDateForDisplay(booking.eventDate)}</div>
+  <div class="detail-row"><span class="label">Time:</span> ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}</div>
   
   <h2>Venue Information</h2>
   <div class="detail-row">Greenwood Hall</div>
@@ -319,7 +294,7 @@ Booking ID: ${booking.id}
     await postmarkClient.sendEmail({
       From: FROM_EMAIL,
       To: booking.contactEmail,
-      Subject: `Your Greenwood Hall showing is scheduled – ${formatDate(eventDate)}`,
+      Subject: `Your Greenwood Hall showing is scheduled – ${formatDateForDisplay(booking.eventDate)}`,
       TextBody: textBody,
       HtmlBody: htmlBody,
       MessageStream: "outbound",
@@ -342,10 +317,6 @@ export async function sendAdminNotificationEmail(
   console.log(`📧 Attempting to send ADMIN notification for ${type} booking ${booking.id}...`);
   
   try {
-    const eventDate = new Date(booking.eventDate);
-    const startTime = new Date(booking.startTime);
-    const endTime = new Date(booking.endTime);
-
     // Build details based on booking type
     let detailsSection = "";
 
@@ -400,7 +371,7 @@ PRICING:
       // SHOWING details
       detailsSection = `
 SHOWING DETAILS:
-• Duration: ${formatTime(startTime)} - ${formatTime(endTime)}
+• Duration: ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}
 `;
     }
 
@@ -413,14 +384,14 @@ CUSTOMER INFORMATION:
 • Phone: ${booking.contactPhone || "Not provided"}
 
 BOOKING INFORMATION:
-• Date: ${formatDate(eventDate)}
-• Time: ${formatTime(startTime)} - ${formatTime(endTime)}
+• Date: ${formatDateForDisplay(booking.eventDate)}
+• Time: ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}
 ${detailsSection}
 ${booking.notes ? `\nCUSTOMER NOTES:\n${booking.notes}\n` : ""}
 ---
 Booking ID: ${booking.id}
 Status: ${booking.status}
-Created: ${new Date(booking.createdAt).toLocaleString("en-US")}
+Created: ${formatDateForDisplay(booking.createdAt, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
     `.trim();
 
     const htmlBody = `
@@ -451,8 +422,8 @@ Created: ${new Date(booking.createdAt).toLocaleString("en-US")}
   </div>
   
   <h2>Booking Information</h2>
-  <div class="detail-row"><span class="label">Date:</span> ${formatDate(eventDate)}</div>
-  <div class="detail-row"><span class="label">Time:</span> ${formatTime(startTime)} - ${formatTime(endTime)}</div>
+  <div class="detail-row"><span class="label">Date:</span> ${formatDateForDisplay(booking.eventDate)}</div>
+  <div class="detail-row"><span class="label">Time:</span> ${formatTimeForDisplay(booking.startTime)} - ${formatTimeForDisplay(booking.endTime)}</div>
   
   ${
     type === "EVENT"
@@ -511,7 +482,7 @@ Created: ${new Date(booking.createdAt).toLocaleString("en-US")}
   <div class="footer">
     <p>Booking ID: ${booking.id}</p>
     <p>Status: ${booking.status}</p>
-    <p>Created: ${new Date(booking.createdAt).toLocaleString("en-US")}</p>
+    <p>Created: ${formatDateForDisplay(booking.createdAt, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
   </div>
 </body>
 </html>
@@ -520,7 +491,7 @@ Created: ${new Date(booking.createdAt).toLocaleString("en-US")}
     await postmarkClient.sendEmail({
       From: FROM_EMAIL,
       To: FROM_EMAIL, // Send to admin (same as from email)
-      Subject: `New ${type} booked – ${formatDate(eventDate)}`,
+      Subject: `New ${type} booked – ${formatDateForDisplay(booking.eventDate)}`,
       TextBody: textBody,
       HtmlBody: htmlBody,
       MessageStream: "outbound",

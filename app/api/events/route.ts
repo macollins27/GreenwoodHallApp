@@ -8,6 +8,7 @@ import {
   getLocalWeekday,
   parseTimeString,
 } from "@/lib/datetime";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 const prisma = new PrismaClient();
 
@@ -23,9 +24,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const boundaries = getDayBoundaries(dateParam);
+    if (!boundaries) {
+      return NextResponse.json(
+        { error: "Invalid date parameter" },
+        { status: 400 }
+      );
+    }
+    const { startOfDay, endOfDay } = boundaries;
+
     // Check if date is blocked
     const blockedDate = await prisma.blockedDate.findFirst({
-      where: { date: dateParam },
+      where: {
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
     });
 
     if (blockedDate) {
@@ -36,10 +51,11 @@ export async function GET(request: NextRequest) {
     const existingEvent = await prisma.booking.findFirst({
       where: {
         bookingType: "EVENT",
-        eventDate: dateParam,
-        status: {
-          not: "CANCELLED",
+        eventDate: {
+          gte: startOfDay,
+          lt: endOfDay,
         },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 
@@ -126,9 +142,7 @@ export async function POST(request: NextRequest) {
           gte: startOfDay,
           lt: endOfDay,
         },
-        status: {
-          not: "CANCELLED",
-        },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 

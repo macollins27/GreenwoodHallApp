@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { sendShowingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
+import {
+  createLocalDate,
+  createLocalDateTime,
+  getDayBoundaries,
+  getLocalWeekday,
+  parseTimeString,
+} from "@/lib/datetime";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 const prisma = new PrismaClient();
 
@@ -26,31 +34,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse date to get start/end of day for range query
-    const parts = showingDate.split("-");
-    if (parts.length !== 3) {
+    const boundaries = getDayBoundaries(showingDate);
+    if (!boundaries) {
       return NextResponse.json(
         { error: "Invalid date format" },
         { status: 400 }
       );
     }
 
-    const [yearStr, monthStr, dayStr] = parts;
-    const year = parseInt(yearStr, 10);
-    const monthIndex = parseInt(monthStr, 10) - 1;
-    const day = parseInt(dayStr, 10);
+    const { startOfDay, endOfDay } = boundaries;
 
-    const startOfDay = new Date(year, monthIndex, day);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+    // Get day of week
+    const dayOfWeek = getLocalWeekday(showingDate);
+    if (dayOfWeek === null) {
+      return NextResponse.json(
+        { error: "Invalid date" },
+        { status: 400 }
+      );
+    }
 
     // Check if there's an event on this date (CRITICAL: Events block entire day for showings)
     const existingEvent = await prisma.booking.findFirst({
       where: {
         bookingType: "EVENT",
-        eventDate: startOfDay,
-        status: {
-          not: "CANCELLED",
+        eventDate: {
+          gte: startOfDay,
+          lt: endOfDay,
         },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 
@@ -64,7 +75,10 @@ export async function POST(request: NextRequest) {
     // Check if date is blocked
     const blockedDate = await prisma.blockedDate.findFirst({
       where: {
-        date: startOfDay,
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
       },
     });
 
@@ -74,9 +88,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Get day of week from already parsed date
-    const dayOfWeek = startOfDay.getDay();
 
     // Check if this time slot is available for this day of week
     const availabilityWindow = await prisma.showingAvailability.findFirst({
@@ -100,11 +111,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if there's already a showing at this exact time
+    const startTimeObj = createLocalDateTime(showingDate, showingTime);
+    if (!startTimeObj) {
+      return NextResponse.json(
+        { error: "Invalid time format" },
+        { status: 400 }
+      );
+    }
+
     const existingShowing = await prisma.booking.findFirst({
       where: {
         bookingType: "SHOWING",
-        eventDate: startOfDay,
-        startTime: new Date(`${showingDate}T${showingTime}:00`),
+        eventDate: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+        startTime: startTimeObj,
         status: {
           not: "CANCELLED",
         },
@@ -119,19 +141,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate end time (30 minutes after start)
-    const [hourStr, minuteStr] = showingTime.split(":");
-    const startHour = parseInt(hourStr, 10);
-    const startMinute = parseInt(minuteStr, 10);
-    const endDate = new Date(year, monthIndex, day, startHour, startMinute + 30);
-    const endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
+    const parsedTime = parseTimeString(showingTime);
+    if (!parsedTime) {
+      return NextResponse.json(
+        { error: "Invalid time format" },
+        { status: 400 }
+      );
+    }
+
+    const { hours, minutes } = parsedTime;
+    const endMinutes = minutes + 30;
+    const endHours = hours + Math.floor(endMinutes / 60);
+    const finalEndMinutes = endMinutes % 60;
+    const endTime = `${endHours.toString().padStart(2, "0")}:${finalEndMinutes.toString().padStart(2, "0")}`;
+
+    const endTimeObj = createLocalDateTime(showingDate, endTime);
+    if (!endTimeObj) {
+      return NextResponse.json(
+        { error: "Error calculating end time" },
+        { status: 500 }
+      );
+    }
 
     // Create showing booking
     const booking = await prisma.booking.create({
       data: {
         bookingType: "SHOWING",
         eventDate: startOfDay,
-        startTime: new Date(`${showingDate}T${showingTime}:00`),
-        endTime: new Date(`${showingDate}T${endTime}:00`),
+        startTime: startTimeObj,
+        endTime: endTimeObj,
         dayType: "weekday", // Showings don't use pricing, but field is required
         hourlyRateCents: 0,
         eventHours: 0,

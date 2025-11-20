@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { sendBookingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
+import { ensureManagementTokenForBooking } from "@/lib/bookingTokens";
 
 type RequestBody = {
   sessionId?: string;
@@ -66,30 +67,45 @@ export async function POST(request: Request) {
       );
     }
 
-    // Idempotency: if already paid, return success without updating
-    if (booking.stripePaymentStatus === "paid") {
+    const isDuplicateSession =
+      booking.stripeCheckoutSessionId === session.id &&
+      booking.stripePaymentStatus === "paid";
+
+    if (isDuplicateSession) {
+      const finalized = await ensureManagementTokenForBooking(booking);
+      const managementToken =
+        (finalized as { managementToken?: string | null })
+          .managementToken ?? null;
+
       return NextResponse.json({
         success: true,
         booking: {
-          id: booking.id,
-          bookingType: booking.bookingType,
-          eventDate: booking.eventDate.toISOString(),
-          startTime: booking.startTime.toISOString(),
-          endTime: booking.endTime.toISOString(),
-          status: booking.status,
-          amountPaidCents: booking.amountPaidCents,
-          totalCents: booking.totalCents ?? null,
+          id: finalized.id,
+          bookingType: finalized.bookingType,
+          eventDate: finalized.eventDate.toISOString(),
+          startTime: finalized.startTime.toISOString(),
+          endTime: finalized.endTime.toISOString(),
+          status: finalized.status,
+          amountPaidCents: finalized.amountPaidCents,
+          totalCents: finalized.totalCents ?? null,
+          managementToken,
         },
       });
     }
 
-    // Update booking if not already paid
+    const paymentAmount =
+      typeof session.amount_total === "number" ? session.amount_total : 0;
+    const paymentType = session.metadata?.type ?? "initial";
+    const newAmountPaid =
+      paymentType === "remaining-balance"
+        ? booking.amountPaidCents + paymentAmount
+        : paymentAmount || booking.amountPaidCents;
+
     const updated = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         stripePaymentStatus: session.payment_status,
-        amountPaidCents:
-          typeof session.amount_total === "number" ? session.amount_total : 0,
+        amountPaidCents: newAmountPaid,
         status: "CONFIRMED",
       },
       include: {
@@ -101,6 +117,8 @@ export async function POST(request: Request) {
       },
     });
 
+    const finalizedBooking = await ensureManagementTokenForBooking(updated);
+
     // Send confirmation emails after successful payment
     // Errors are logged but won't break the payment confirmation flow
     sendBookingConfirmationEmail(updated).catch((err) => {
@@ -111,17 +129,22 @@ export async function POST(request: Request) {
       console.error("Admin notification failed after payment confirmation:", err);
     });
 
+    const managementToken =
+      (finalizedBooking as { managementToken?: string | null })
+        .managementToken ?? null;
+
     return NextResponse.json({
       success: true,
       booking: {
-        id: updated.id,
-        bookingType: updated.bookingType,
-        eventDate: updated.eventDate.toISOString(),
-        startTime: updated.startTime.toISOString(),
-        endTime: updated.endTime.toISOString(),
-        status: updated.status,
-        amountPaidCents: updated.amountPaidCents,
-        totalCents: updated.totalCents ?? null,
+        id: finalizedBooking.id,
+        bookingType: finalizedBooking.bookingType,
+        eventDate: finalizedBooking.eventDate.toISOString(),
+        startTime: finalizedBooking.startTime.toISOString(),
+        endTime: finalizedBooking.endTime.toISOString(),
+        status: finalizedBooking.status,
+        amountPaidCents: finalizedBooking.amountPaidCents,
+        totalCents: finalizedBooking.totalCents ?? null,
+        managementToken,
       },
     });
   } catch (error) {

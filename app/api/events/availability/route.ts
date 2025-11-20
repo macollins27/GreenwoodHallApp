@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 const prisma = new PrismaClient();
 
@@ -49,9 +50,7 @@ export async function GET(request: NextRequest) {
           gte: startOfDay,
           lt: endOfDay,
         },
-        status: {
-          not: "CANCELLED",
-        },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 

@@ -54,31 +54,37 @@ export default function DashboardClient({
   const [blockedDate, setBlockedDate] = useState("");
   const [blockedReason, setBlockedReason] = useState("");
   const [formMessage, setFormMessage] = useState<string | null>(null);
-  
-  // Dashboard view state - initialize with "calendar" to match SSR
-  const [dashboardView, setDashboardView] = useState<"list" | "calendar">("calendar");
-  
-  // Hydrate view preference from URL or localStorage after mount
+  const viewParam = searchParams.get("view");
+  const dashboardView: "list" | "calendar" =
+    viewParam === "list" || viewParam === "calendar" ? viewParam : "calendar";
+
   useEffect(() => {
-    const urlView = searchParams.get("view");
-    if (urlView === "list" || urlView === "calendar") {
-      setDashboardView(urlView);
+    if (viewParam === "list" || viewParam === "calendar") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("adminDashboardView", viewParam);
+      }
       return;
     }
-    const saved = localStorage.getItem("adminDashboardView");
-    if (saved === "list" || saved === "calendar") {
-      setDashboardView(saved);
+
+    if (typeof window === "undefined") {
+      return;
     }
-  }, [searchParams]);
-  
-  // Persist view preference
-  useEffect(() => {
-    localStorage.setItem("adminDashboardView", dashboardView);
-    // Update URL without causing navigation
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", dashboardView);
-    window.history.replaceState({}, "", url);
-  }, [dashboardView]);
+
+    const saved = localStorage.getItem("adminDashboardView");
+    const fallback =
+      saved === "list" || saved === "calendar" ? saved : "calendar";
+    router.replace(`/admin?view=${fallback}`);
+  }, [router, viewParam]);
+
+  const handleDashboardViewChange = (nextView: "list" | "calendar") => {
+    if (nextView === dashboardView) {
+      return;
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adminDashboardView", nextView);
+    }
+    router.replace(`/admin?view=${nextView}`);
+  };
   
   // Sorting state
   const [sortColumn, setSortColumn] = useState<"date" | "type" | "status" | "created">("date");
@@ -252,7 +258,7 @@ export default function DashboardClient({
         <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-sm">
           <button
             type="button"
-            onClick={() => setDashboardView("calendar")}
+            onClick={() => handleDashboardViewChange("calendar")}
             className={`px-6 py-3 text-sm font-semibold transition ${
               dashboardView === "calendar"
                 ? "bg-primary text-white"
@@ -263,7 +269,7 @@ export default function DashboardClient({
           </button>
           <button
             type="button"
-            onClick={() => setDashboardView("list")}
+            onClick={() => handleDashboardViewChange("list")}
             className={`px-6 py-3 text-sm font-semibold transition ${
               dashboardView === "list"
                 ? "bg-primary text-white"
@@ -496,7 +502,9 @@ export default function DashboardClient({
                   <td className="py-3 pr-4 text-right">
                     <button
                       type="button"
-                      onClick={() => router.push(`/admin/bookings/${booking.id}`)}
+                      onClick={() =>
+                        router.push(`/admin/bookings/${booking.id}?view=${dashboardView}`)
+                      }
                       className="rounded-full border border-primary px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/5"
                     >
                       View

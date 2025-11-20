@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { EVENT_BLOCKING_STATUS, EVENT_STATUS } from "@/lib/bookingStatus";
 import {
   PricingError,
   validateAndCalculatePricing,
 } from "@/lib/pricing";
 import { sendAdminNotificationEmail } from "@/lib/email";
+import { ensureManagementTokenForBooking } from "@/lib/bookingTokens";
 
 type AdminBookingRequestBody = {
   bookingType?: string;
@@ -336,7 +338,7 @@ export async function POST(request: Request) {
           gte: start,
           lt: end,
         },
-        NOT: { status: "CANCELLED" },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 
@@ -414,9 +416,18 @@ export async function POST(request: Request) {
       },
     });
 
+    let bookingRecord = booking;
+
+    if (
+      normalizedBookingType === "EVENT" &&
+      normalizedStatus === EVENT_STATUS.CONFIRMED
+    ) {
+      await ensureManagementTokenForBooking(bookingRecord);
+    }
+
     // Optionally send admin notification for admin-created events
     if (sendAdminEmail) {
-      sendAdminNotificationEmail(booking, "EVENT").catch((err) => {
+      sendAdminNotificationEmail(bookingRecord, "EVENT").catch((err) => {
         console.error("Admin notification email failed for admin-created event:", err);
       });
     }
@@ -424,9 +435,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         bookingId: booking.id,
-        booking: booking,
-        bookingType: booking.bookingType,
-        status: booking.status,
+        booking: bookingRecord,
+        bookingType: bookingRecord.bookingType,
+        status: bookingRecord.status,
         pricing: breakdown,
       },
       { status: 201 }

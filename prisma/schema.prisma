@@ -46,6 +46,8 @@ model Booking {
   roundTablesRequested Int?
   chairsRequested      Int?
   setupNotes           String?
+  managementToken      String?  @unique
+  managementTokenExpiresAt DateTime?
 
   // Relations
   addOns           BookingAddOn[]

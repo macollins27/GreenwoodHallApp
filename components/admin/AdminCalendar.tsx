@@ -261,7 +261,7 @@ export default function AdminCalendar() {
             ? "bg-slate-100 text-slate-400 line-through"
             : "bg-blue-100 text-blue-800 hover:bg-blue-200"
         } ${isCompact ? "mb-0.5" : "mb-1"}`}
-        onClick={() => router.push(`/admin/bookings/${booking.id}`)}
+        onClick={() => router.push(`/admin/bookings/${booking.id}?view=calendar`)}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setHoveredBooking(null)}
       >

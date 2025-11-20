@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 type EventBooking = {
@@ -67,6 +67,7 @@ export default function EventDetailClient({
   booking: EventBooking;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -84,6 +85,13 @@ export default function EventDetailClient({
     startTimeLabel && endTimeLabel
       ? `${startTimeLabel} – ${endTimeLabel}`
       : "Time not set";
+  const backView = searchParams.get("view") === "list" ? "list" : "calendar";
+  const backHref =
+    backView === "list" ? "/admin?view=list" : "/admin?view=calendar";
+  const editHref =
+    backView === "list"
+      ? `/admin/bookings/${booking.id}/edit?view=list`
+      : `/admin/bookings/${booking.id}/edit?view=calendar`;
 
   async function updateStatus(status: "PENDING" | "CONFIRMED" | "CANCELLED") {
     setIsUpdating(true);
@@ -109,13 +117,22 @@ export default function EventDetailClient({
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => router.push("/admin")}
-        className="text-sm font-semibold text-primary hover:underline"
-      >
-        ← Back to dashboard
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => router.push(backHref)}
+          className="text-sm font-semibold text-primary hover:underline"
+        >
+          ← Back to dashboard
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(editHref)}
+          className="rounded-full border border-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-primary transition hover:bg-primary/5"
+        >
+          Edit Event
+        </button>
+      </div>
       <div className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

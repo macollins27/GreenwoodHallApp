@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 function generateTimeSlots(
   startTime: string,
@@ -106,9 +107,7 @@ export async function GET(request: Request) {
           gte: startOfDay,
           lt: endOfDay,
         },
-        status: {
-          not: "CANCELLED",
-        },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
 

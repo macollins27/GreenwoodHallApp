@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 type DayStatus = "available" | "booked" | "blocked";
 
@@ -72,7 +73,8 @@ export async function GET(request: Request) {
   } else if (
     bookings.some(
       (booking) =>
-        booking.bookingType === "EVENT" && booking.status !== "CANCELLED"
+        booking.bookingType === "EVENT" &&
+        booking.status === EVENT_BLOCKING_STATUS
     )
   ) {
     status = "booked";

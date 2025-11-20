@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 type ShowingAppointment = {
   id: string;
@@ -19,24 +20,13 @@ type ShowingAppointment = {
   updatedAt: string;
 };
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-});
-
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 export default function ShowingDetailClient({
   booking,
 }: {
   booking: ShowingAppointment;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -58,23 +48,39 @@ export default function ShowingDetailClient({
     setIsUpdating(false);
   }
 
-  const appointmentDate = new Date(booking.eventDate);
-  const startTime = new Date(booking.startTime);
-  const endTime = new Date(booking.endTime);
-
-  // Calculate duration in minutes
-  const durationMs = endTime.getTime() - startTime.getTime();
+  // Calculate duration in minutes using ISO strings directly
+  const startTimeDate = new Date(booking.startTime);
+  const endTimeDate = new Date(booking.endTime);
+  const durationMs = endTimeDate.getTime() - startTimeDate.getTime();
   const durationMinutes = Math.round(durationMs / (1000 * 60));
+  const backView = searchParams.get("view") === "list" ? "list" : "calendar";
+  const editHref =
+    backView === "list"
+      ? `/admin/bookings/${booking.id}/edit?view=list`
+      : `/admin/bookings/${booking.id}/edit?view=calendar`;
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => router.push("/admin")}
-        className="text-sm font-semibold text-primary hover:underline"
-      >
-        ← Back to dashboard
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() =>
+            router.push(
+              backView === "list" ? "/admin?view=list" : "/admin?view=calendar"
+            )
+          }
+          className="text-sm font-semibold text-primary hover:underline"
+        >
+          ← Back to dashboard
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(editHref)}
+          className="rounded-full border border-primary px-4 py-2 text-xs font-semibold uppercase tracking-wide text-primary transition hover:bg-primary/5"
+        >
+          Edit Showing
+        </button>
+      </div>
       <div className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -82,10 +88,10 @@ export default function ShowingDetailClient({
               Hall Showing
             </p>
             <h1 className="text-2xl font-semibold text-textMain">
-              {dateFormatter.format(appointmentDate)}
+              {formatDateForDisplay(booking.eventDate)}
             </h1>
             <p className="text-sm text-slate-600">
-              {timeFormatter.format(startTime)} (Approx. {durationMinutes}-minute visit)
+              {formatTimeForDisplay(booking.startTime)} (Approx. {durationMinutes}-minute visit)
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -161,11 +167,11 @@ export default function ShowingDetailClient({
           <dl className="mt-3 space-y-3 text-sm text-slate-700">
             <div className="flex justify-between">
               <dt className="font-semibold">Date</dt>
-              <dd>{dateFormatter.format(appointmentDate)}</dd>
+              <dd>{formatDateForDisplay(booking.eventDate)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="font-semibold">Appointment Time</dt>
-              <dd>{timeFormatter.format(startTime)}</dd>
+              <dd>{formatTimeForDisplay(booking.startTime)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="font-semibold">Expected Duration</dt>
@@ -210,11 +216,11 @@ export default function ShowingDetailClient({
             </div>
             <div>
               <dt className="font-semibold">Created</dt>
-              <dd>{new Date(booking.createdAt).toLocaleString()}</dd>
+              <dd>{formatDateForDisplay(booking.createdAt, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</dd>
             </div>
             <div>
               <dt className="font-semibold">Last Updated</dt>
-              <dd>{new Date(booking.updatedAt).toLocaleString()}</dd>
+              <dd>{formatDateForDisplay(booking.updatedAt, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</dd>
             </div>
           </dl>
         </div>

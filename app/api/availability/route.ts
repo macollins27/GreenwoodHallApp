@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
 
 type AvailabilityStatus = "available" | "booked" | "blocked";
 
@@ -53,17 +54,17 @@ export async function GET(request: Request) {
   if (blocked) {
     status = "blocked";
   } else {
-    const existingEvent = await prisma.booking.findFirst({
+    const blockingEvent = await prisma.booking.findFirst({
       where: {
         bookingType: "EVENT",
         eventDate: {
           gte: start,
           lt: end,
         },
-        NOT: { status: "CANCELLED" },
+        status: EVENT_BLOCKING_STATUS,
       },
     });
-    if (existingEvent) {
+    if (blockingEvent) {
       status = "booked";
     }
   }
