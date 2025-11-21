@@ -18,7 +18,7 @@ cd /workspaces/GreenwoodHallApp
 touch .env
 
 # Open in editor and add your environment variables:
-# DATABASE_URL="file:./dev.db"
+# DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 # ADMIN_EMAIL="info@greenwood-hall.com"
 # ADMIN_PASSWORD="your-password"
 # STRIPE_SECRET_KEY="sk_test_your_stripe_secret_key"

@@ -142,11 +142,12 @@ export default function AdminEventEditForm({
   function handleAddOnChange(id: string, value: string) {
     const quantity = Number(value);
     setSelectedAddOns((prev) => {
+      const next = { ...prev };
       if (!Number.isFinite(quantity) || quantity <= 0) {
-        const { [id]: _removed, ...rest } = prev;
-        return rest;
+        delete next[id];
+        return next;
       }
-      return { ...prev, [id]: quantity };
+      return { ...next, [id]: quantity };
     });
   }
 

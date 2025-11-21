@@ -29,4 +29,3 @@ export async function DELETE(_: NextRequest, context: RouteContext) {
     );
   }
 }
-

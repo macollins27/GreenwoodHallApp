@@ -160,7 +160,14 @@ export default function BookingManageClient({
     setSetupSaving(true);
 
     try {
-      const payload: any = {
+      const payload: {
+        rectTablesRequested: number | null;
+        roundTablesRequested: number | null;
+        chairsRequested: number | null;
+        setupNotes: string;
+        notes: string;
+        addOns?: { addOnId: string; quantity: number }[];
+      } = {
         rectTablesRequested:
           setupForm.rectTablesRequested === ""
             ? null

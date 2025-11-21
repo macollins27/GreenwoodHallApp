@@ -26,7 +26,6 @@ type PageProps = {
 
 export default async function BookingWizardPage({ params }: PageProps) {
   const resolvedParams = await params;
-  
   const bookingId = resolvedParams.id ?? resolvedParams.bookingId;
 
   if (!bookingId || typeof bookingId !== "string" || bookingId.trim() === "") {
@@ -62,4 +61,3 @@ export default async function BookingWizardPage({ params }: PageProps) {
     </main>
   );
 }
-

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 type AddOn = {
   id: string;
@@ -22,7 +21,6 @@ function formatCurrency(cents: number) {
 }
 
 export default function AddOnsManagementPage() {
-  const router = useRouter();
   const [addOns, setAddOns] = useState<AddOn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

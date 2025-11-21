@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { sendShowingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
 import {
-  createLocalDate,
+  sendAdminShowingNotification,
+  sendCustomerShowingConfirmation,
+  type BookingWithExtras,
+} from "@/lib/email";
+import {
   createLocalDateTime,
   getDayBoundaries,
   getLocalWeekday,
@@ -189,11 +192,12 @@ export async function POST(request: NextRequest) {
 
     // Send confirmation emails (async, non-blocking)
     // Errors are logged but won't break the booking flow
-    sendShowingConfirmationEmail(booking).catch((err) => {
+    const enhancedBooking = booking as BookingWithExtras;
+    sendCustomerShowingConfirmation(enhancedBooking).catch((err) => {
       console.error("Email sending failed, but booking was created:", err);
     });
-    
-    sendAdminNotificationEmail(booking, "SHOWING").catch((err) => {
+
+    sendAdminShowingNotification(enhancedBooking).catch((err) => {
       console.error("Admin notification failed, but booking was created:", err);
     });
 

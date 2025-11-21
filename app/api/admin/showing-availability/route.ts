@@ -61,13 +61,20 @@ export async function POST(request: Request) {
     // Delete existing availability and recreate
     if (availability) {
       await prisma.showingAvailability.deleteMany({});
-      
-      const availabilityData = availability.map((item: any) => ({
-        dayOfWeek: item.dayOfWeek,
-        startTime: item.startTime,
-        endTime: item.endTime,
-        enabled: item.enabled ?? true,
-      }));
+
+      const availabilityData = (Array.isArray(availability) ? availability : []).map(
+        (item: {
+          dayOfWeek: number;
+          startTime: string;
+          endTime: string;
+          enabled?: boolean;
+        }) => ({
+          dayOfWeek: item.dayOfWeek,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          enabled: item.enabled ?? true,
+        })
+      );
 
       if (availabilityData.length > 0) {
         await prisma.showingAvailability.createMany({

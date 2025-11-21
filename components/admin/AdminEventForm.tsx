@@ -66,12 +66,13 @@ export default function AdminEventForm() {
   }, []);
 
   function handleAddOnChange(addOnId: string, quantity: number) {
-    setSelectedAddOns(prev => {
+    setSelectedAddOns((prev) => {
+      const next = { ...prev };
       if (quantity <= 0) {
-        const { [addOnId]: _, ...rest } = prev;
-        return rest;
+        delete next[addOnId];
+        return next;
       }
-      return { ...prev, [addOnId]: quantity };
+      return { ...next, [addOnId]: quantity };
     });
   }
 
@@ -497,7 +498,7 @@ export default function AdminEventForm() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-600">
-                  (For reference only - adjust "Amount Paid" above as needed)
+                  (For reference only - adjust &quot;Amount Paid&quot; above as needed)
                 </p>
               </div>
             )}

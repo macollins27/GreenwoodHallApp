@@ -9,6 +9,7 @@ import {
 } from "@/lib/datetime";
 import { EVENT_BLOCKING_STATUS, SHOWING_STATUS } from "@/lib/bookingStatus";
 import { ADMIN_COOKIE_NAME } from "@/lib/auth";
+import { sendCustomerShowingUpdated, type BookingWithExtras } from "@/lib/email";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -22,6 +23,16 @@ const ALLOWED_SHOWING_STATUSES = new Set<ShowingStatusValue>([
   SHOWING_STATUS.COMPLETED,
   SHOWING_STATUS.CANCELLED,
 ]);
+
+type ShowingUpdatePayload = {
+  eventDate?: string;
+  time?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string | null;
+  status?: ShowingStatusValue | string;
+  notes?: string | null;
+};
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const cookieStore = await cookies();
@@ -37,9 +48,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
-  let body: any;
+  let body: ShowingUpdatePayload = {};
   try {
-    body = await request.json();
+    body = (await request.json()) as ShowingUpdatePayload;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON payload." },
@@ -248,6 +259,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       notes: typeof notes === "string" ? notes : null,
     },
   });
+
+  sendCustomerShowingUpdated(
+    updatedBooking as BookingWithExtras
+  ).catch((err) =>
+    console.error("Failed to send showing updated email:", err)
+  );
 
   return NextResponse.json({
     success: true,

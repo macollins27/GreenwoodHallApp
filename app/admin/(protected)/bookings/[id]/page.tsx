@@ -53,4 +53,3 @@ export default async function BookingDetailPage({ params }: PageProps) {
   // Default to event detail for EVENT bookings
   return <EventDetailClient booking={serializedBooking} />;
 }
-

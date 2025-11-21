@@ -91,12 +91,13 @@ export default function EventBookingForm() {
   }, []);
 
   function handleAddOnChange(addOnId: string, quantity: number) {
-    setSelectedAddOns(prev => {
+    setSelectedAddOns((prev) => {
+      const next = { ...prev };
       if (quantity <= 0) {
-        const { [addOnId]: _, ...rest } = prev;
-        return rest;
+        delete next[addOnId];
+        return next;
       }
-      return { ...prev, [addOnId]: quantity };
+      return { ...next, [addOnId]: quantity };
     });
   }
 

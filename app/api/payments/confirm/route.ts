@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { sendBookingConfirmationEmail, sendAdminNotificationEmail } from "@/lib/email";
+import {
+  sendCustomerEventConfirmation,
+  sendCustomerPaymentReceipt,
+  type BookingWithExtras,
+} from "@/lib/email";
 import { ensureManagementTokenForBooking } from "@/lib/bookingTokens";
 
 type RequestBody = {
@@ -50,6 +54,13 @@ export async function POST(request: Request) {
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        addOns: {
+          include: {
+            addOn: true,
+          },
+        },
+      },
     });
 
     if (!booking) {
@@ -117,16 +128,24 @@ export async function POST(request: Request) {
       },
     });
 
-    const finalizedBooking = await ensureManagementTokenForBooking(updated);
+    const finalizedBooking = (await ensureManagementTokenForBooking(
+      updated
+    )) as BookingWithExtras;
 
-    // Send confirmation emails after successful payment
-    // Errors are logged but won't break the payment confirmation flow
-    sendBookingConfirmationEmail(updated).catch((err) => {
-      console.error("Email sending failed after payment confirmation:", err);
-    });
-    
-    sendAdminNotificationEmail(updated, "EVENT").catch((err) => {
-      console.error("Admin notification failed after payment confirmation:", err);
+    // Send confirmation/receipt emails after successful payment (non-blocking)
+    const wasAlreadyConfirmed = booking.status === "CONFIRMED";
+    const isRemainingBalance = paymentType === "remaining-balance";
+    if (!wasAlreadyConfirmed) {
+      sendCustomerEventConfirmation(finalizedBooking).catch((err) => {
+        console.error("Email sending failed after payment confirmation:", err);
+      });
+    }
+    sendCustomerPaymentReceipt(
+      finalizedBooking,
+      paymentAmount,
+      isRemainingBalance
+    ).catch((err) => {
+      console.error("Payment receipt email failed:", err);
     });
 
     const managementToken =
@@ -155,4 +174,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

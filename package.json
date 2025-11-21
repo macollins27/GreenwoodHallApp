@@ -8,13 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "db:backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-db.ps1",
-    "db:restore": "powershell -ExecutionPolicy Bypass -File scripts/restore-db.ps1",
-    "db:reset": "npm run db:backup && prisma migrate reset --force && npm run db:seed",
+    "db:reset": "prisma migrate reset --force && npm run db:seed",
     "db:studio": "prisma studio"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.1",

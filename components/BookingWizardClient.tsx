@@ -6,7 +6,7 @@ import {
   CONTRACT_TITLE,
   CONTRACT_SECTIONS,
 } from "@/lib/contract";
-import { AVAILABLE_TABLES, BUSINESS_PHONE } from "@/lib/constants";
+import { AVAILABLE_TABLES } from "@/lib/constants";
 import { formatDateForDisplay, formatTimeForDisplay } from "@/lib/datetime";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -630,4 +630,3 @@ export default function BookingWizardClient({ booking }: BookingWizardProps) {
     </div>
   );
 }
-

@@ -4,6 +4,12 @@ import {
   loadBookingForManagement,
   ManagementTokenExpiredError,
 } from "@/lib/manageBooking";
+import {
+  sendCustomerEventCancelled,
+  sendCustomerShowingCancelled,
+  sendAdminCancellationNotification,
+  type BookingWithExtras,
+} from "@/lib/email";
 
 export async function POST(
   request: NextRequest,
@@ -27,6 +33,29 @@ export async function POST(
     const updated = await prisma.booking.update({
       where: { id: booking.id },
       data: { status: "CANCELLED" },
+      include: {
+        addOns: {
+          include: {
+            addOn: true,
+          },
+        },
+      },
+    });
+
+    const enhanced = updated as BookingWithExtras;
+
+    if (booking.bookingType === "EVENT") {
+      sendCustomerEventCancelled(enhanced).catch((err) => {
+        console.error("Failed to send event cancellation email:", err);
+      });
+    } else {
+      sendCustomerShowingCancelled(enhanced).catch((err) => {
+        console.error("Failed to send showing cancellation email:", err);
+      });
+    }
+
+    sendAdminCancellationNotification(enhanced).catch((err) => {
+      console.error("Failed to send admin cancellation notice:", err);
     });
 
     return NextResponse.json({

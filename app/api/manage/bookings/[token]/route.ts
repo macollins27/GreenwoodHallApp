@@ -5,6 +5,12 @@ import {
   ManagementTokenExpiredError,
   serializeManagedBooking,
 } from "@/lib/manageBooking";
+import {
+  sendCustomerEventUpdated,
+  sendCustomerShowingUpdated,
+  type BookingWithExtras,
+} from "@/lib/email";
+import { Prisma } from "@prisma/client";
 
 export async function GET(
   request: NextRequest,
@@ -60,7 +66,17 @@ export async function PATCH(
       );
     }
 
-    const body = await request.json().catch(() => ({}));
+    const body = (await request.json().catch(() => ({}))) as {
+      contactName?: unknown;
+      contactEmail?: unknown;
+      contactPhone?: unknown;
+      rectTablesRequested?: unknown;
+      roundTablesRequested?: unknown;
+      chairsRequested?: unknown;
+      setupNotes?: unknown;
+      notes?: unknown;
+      addOns?: { addOnId?: unknown; quantity?: unknown }[];
+    };
     const {
       contactName,
       contactEmail,
@@ -73,7 +89,7 @@ export async function PATCH(
       addOns,
     } = body ?? {};
 
-    const updateData: any = {};
+    const updateData: Prisma.BookingUpdateInput = {};
 
     if (typeof contactName === "string") updateData.contactName = contactName;
     if (typeof contactEmail === "string") updateData.contactEmail = contactEmail;
@@ -94,47 +110,55 @@ export async function PATCH(
     if (notes !== undefined)
       updateData.notes = typeof notes === "string" ? notes : null;
 
-    if (
-      booking.bookingType === "EVENT" &&
-      Array.isArray(addOns)
-    ) {
+    const addOnsProvided =
+      booking.bookingType === "EVENT" && Array.isArray(addOns);
+
+    if (addOnsProvided) {
       const sanitized = addOns
-        .map((addon: any) => ({
-          addOnId:
-            typeof addon?.addOnId === "string" ? addon.addOnId : null,
+        .map((addon) => ({
+          addOnId: typeof addon?.addOnId === "string" ? addon.addOnId : null,
           quantity:
             typeof addon?.quantity === "number"
               ? Math.trunc(addon.quantity)
               : Number(addon?.quantity ?? 0),
         }))
         .filter(
-          (addon) => addon.addOnId && Number.isFinite(addon.quantity) && addon.quantity > 0
+          (addon) =>
+            addon.addOnId &&
+            Number.isFinite(addon.quantity) &&
+            addon.quantity > 0
         );
 
       if (sanitized.length > 0) {
         const catalog = await prisma.addOn.findMany({
           where: {
             id: {
-              in: sanitized.map((addon) => addon.addOnId!) as string[],
+              in: sanitized
+                .map((addon) => addon.addOnId)
+                .filter(Boolean) as string[],
             },
           },
         });
 
+        const createAddOns: {
+          addOnId: string;
+          quantity: number;
+          priceAtBooking: number;
+        }[] = [];
+
+        sanitized.forEach((addon) => {
+          const match = catalog.find((item) => item.id === addon.addOnId);
+          if (!match || !addon.addOnId) return;
+          createAddOns.push({
+            addOnId: addon.addOnId,
+            quantity: addon.quantity,
+            priceAtBooking: match.priceCents,
+          });
+        });
+
         updateData.addOns = {
           deleteMany: {},
-          create: sanitized
-            .map((addon) => {
-              const match = catalog.find(
-                (item) => item.id === addon.addOnId
-              );
-              if (!match) return null;
-              return {
-                addOnId: addon.addOnId!,
-                quantity: addon.quantity,
-                priceAtBooking: match.priceCents,
-              };
-            })
-            .filter(Boolean),
+          create: createAddOns,
         };
       } else {
         updateData.addOns = {
@@ -155,6 +179,22 @@ export async function PATCH(
         },
       },
     });
+
+    if (
+      (Object.keys(updateData).length > 0 || addOnsProvided) &&
+      booking.bookingType === "EVENT"
+    ) {
+      sendCustomerEventUpdated(updated as BookingWithExtras).catch((err) => {
+        console.error("Failed to send event updated email:", err);
+      });
+    } else if (
+      (Object.keys(updateData).length > 0 || addOnsProvided) &&
+      booking.bookingType === "SHOWING"
+    ) {
+      sendCustomerShowingUpdated(updated as BookingWithExtras).catch((err) => {
+        console.error("Failed to send showing updated email:", err);
+      });
+    }
 
     return NextResponse.json(serializeManagedBooking(updated));
   } catch (error) {

@@ -39,8 +39,14 @@ export default function AdminShowingForm() {
           setAvailableSlots([]);
         } else if (data.slots && Array.isArray(data.slots)) {
           const slots = data.slots
-            .filter((slot: any) => slot.available)
-            .map((slot: any) => slot.time);
+            .filter(
+              (slot: { available?: boolean }) => slot.available === true
+            )
+            .map((slot: { time?: string }) => slot.time)
+            .filter(
+              (time: string | undefined): time is string =>
+                typeof time === "string"
+            );
           setAvailableSlots(slots);
         } else {
           setAvailableSlots([]);

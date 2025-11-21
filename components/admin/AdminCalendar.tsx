@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatTimeForDisplay, getBusinessDate } from "@/lib/datetime";
 
@@ -120,11 +120,7 @@ export default function AdminCalendar() {
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
 
-  useEffect(() => {
-    fetchCalendarData();
-  }, [currentDate, viewMode]);
-
-  async function fetchCalendarData() {
+  const fetchCalendarData = useCallback(async () => {
     setLoading(true);
     try {
       let startDate: Date;
@@ -161,7 +157,11 @@ export default function AdminCalendar() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentDate, currentMonth, currentYear, viewMode]);
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [fetchCalendarData]);
 
   function goToToday() {
     setCurrentDate(new Date());

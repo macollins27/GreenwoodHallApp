@@ -9,8 +9,15 @@ import {
   parseTimeString,
 } from "@/lib/datetime";
 import { EVENT_BLOCKING_STATUS } from "@/lib/bookingStatus";
+import { sendAdminEventNotification, type BookingWithExtras } from "@/lib/email";
 
 const prisma = new PrismaClient();
+
+type IncomingAddOn = {
+  addOnId?: string;
+  quantity?: number;
+  priceAtBooking?: number;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -90,13 +97,6 @@ export async function POST(request: NextRequest) {
       notes,
       addOns = [],
     } = body;
-
-    console.log("[TZ DEBUG] raw event booking input", {
-      eventDate,
-      startTime,
-      endTime,
-      bookingType: body?.bookingType ?? "EVENT",
-    });
 
     // Validate required fields
     if (!eventDate || !startTime || !endTime || !eventType || !contactName || !contactEmail) {
@@ -204,10 +204,28 @@ export async function POST(request: NextRequest) {
     const extraSetupCents = extraSetup * (PRICING_DETAILS.extraSetupHourly * 100);
     const depositCents = PRICING_DETAILS.securityDeposit * 100;
     
+    const parsedAddOns: IncomingAddOn[] = Array.isArray(addOns)
+      ? addOns
+          .map((addon: Partial<IncomingAddOn>) => ({
+            addOnId: typeof addon.addOnId === "string" ? addon.addOnId : undefined,
+            quantity: Number(addon?.quantity ?? 0),
+            priceAtBooking: Number(addon?.priceAtBooking ?? 0),
+          }))
+          .filter(
+            (addon) =>
+              typeof addon.addOnId === "string" &&
+              Number.isFinite(addon.quantity) &&
+              addon.quantity > 0 &&
+              Number.isFinite(addon.priceAtBooking) &&
+              addon.priceAtBooking >= 0
+          )
+      : [];
+
     // Calculate add-ons total
-    const addOnsTotal = Array.isArray(addOns) 
-      ? addOns.reduce((sum, addon) => sum + (addon.priceAtBooking * addon.quantity), 0)
-      : 0;
+    const addOnsTotal = parsedAddOns.reduce(
+      (sum, addon) => sum + (addon.priceAtBooking ?? 0) * (addon.quantity ?? 0),
+      0
+    );
     
     const totalCents = baseAmountCents + extraSetupCents + depositCents + addOnsTotal;
 
@@ -222,15 +240,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    console.log("[TZ DEBUG] event booking Date objects", {
-      eventDate: eventDateObj,
-      eventDateIso: eventDateObj?.toISOString?.(),
-      startTime: startTimeObj,
-      startTimeIso: startTimeObj?.toISOString?.(),
-      endTime: endTimeObj,
-      endTimeIso: endTimeObj?.toISOString?.(),
-    });
 
     // Create booking
     const booking = await prisma.booking.create({
@@ -257,16 +266,28 @@ export async function POST(request: NextRequest) {
         extraSetupCents,
         depositCents,
         totalCents,
-        addOns: addOns.length > 0
+        addOns: parsedAddOns.length > 0
           ? {
-              create: addOns.map((addon: any) => ({
-                addOnId: addon.addOnId,
-                quantity: addon.quantity,
-                priceAtBooking: addon.priceAtBooking,
+              create: parsedAddOns.map((addon) => ({
+                addOnId: addon.addOnId as string,
+                quantity: addon.quantity as number,
+                priceAtBooking: addon.priceAtBooking as number,
               })),
             }
           : undefined,
       },
+      include: {
+        addOns: {
+          include: {
+            addOn: true,
+          },
+        },
+      },
+    });
+
+    // Admin notification (non-blocking)
+    sendAdminEventNotification(booking as BookingWithExtras).catch((err) => {
+      console.error("Admin notification failed for new event booking:", err);
     });
 
     return NextResponse.json({

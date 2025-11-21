@@ -88,7 +88,7 @@ export default function AdminShowingEditForm({
         }
 
         const slots = Array.isArray(data.slots)
-          ? data.slots.map((slot: any) =>
+          ? data.slots.map((slot: { time?: string } | string) =>
               typeof slot === "string" ? slot : slot?.time
             )
           : [];

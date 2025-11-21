@@ -1,3 +1,4 @@
+import type { AddOn, Booking, BookingAddOn } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export class ManagementTokenExpiredError extends Error {
@@ -10,7 +11,7 @@ export async function loadBookingForManagement(token: string) {
   if (!token || token.trim() === "") return null;
 
   const booking = await prisma.booking.findFirst({
-    where: { managementToken: token } as any,
+    where: { managementToken: token },
     include: {
       addOns: {
         include: {
@@ -22,9 +23,7 @@ export async function loadBookingForManagement(token: string) {
 
   if (!booking) return null;
 
-  const expiresAt = (
-    booking as { managementTokenExpiresAt?: Date | null }
-  ).managementTokenExpiresAt;
+  const expiresAt = booking.managementTokenExpiresAt;
 
   if (expiresAt && expiresAt.getTime() < Date.now()) {
     throw new ManagementTokenExpiredError();
@@ -33,7 +32,15 @@ export async function loadBookingForManagement(token: string) {
   return booking;
 }
 
-export function serializeManagedBooking(booking: any) {
+export function serializeManagedBooking(
+  booking: Booking & {
+    addOns?: Array<
+      BookingAddOn & {
+        addOn?: AddOn | null;
+      }
+    >;
+  }
+) {
   return {
     bookingId: booking.id,
     bookingType: booking.bookingType,
@@ -52,7 +59,7 @@ export function serializeManagedBooking(booking: any) {
     setupNotes: booking.setupNotes,
     notes: booking.notes,
     addons:
-      booking.addOns?.map((addon: any) => ({
+      booking.addOns?.map((addon) => ({
         id: addon.id,
         addOnId: addon.addOnId,
         quantity: addon.quantity,

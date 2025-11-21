@@ -5,7 +5,13 @@ import {
   PricingError,
   validateAndCalculatePricing,
 } from "@/lib/pricing";
-import { sendAdminNotificationEmail } from "@/lib/email";
+import {
+  sendAdminEventNotification,
+  sendAdminShowingNotification,
+  sendCustomerEventConfirmation,
+  sendCustomerShowingConfirmation,
+  type BookingWithExtras,
+} from "@/lib/email";
 import { ensureManagementTokenForBooking } from "@/lib/bookingTokens";
 
 type AdminBookingRequestBody = {
@@ -217,9 +223,13 @@ export async function POST(request: Request) {
         },
       });
 
-      // Optionally send admin notification for admin-created showings
+      // Notifications (non-blocking)
+      const showingEnhanced = booking as BookingWithExtras;
+      sendCustomerShowingConfirmation(showingEnhanced).catch((err) => {
+        console.error("Customer showing confirmation failed:", err);
+      });
       if (sendAdminEmail) {
-        sendAdminNotificationEmail(booking, "SHOWING").catch((err) => {
+        sendAdminShowingNotification(showingEnhanced).catch((err) => {
           console.error("Admin notification email failed for admin-created showing:", err);
         });
       }
@@ -416,20 +426,29 @@ export async function POST(request: Request) {
       },
     });
 
-    let bookingRecord = booking;
+    let bookingRecord = booking as BookingWithExtras;
 
     if (
       normalizedBookingType === "EVENT" &&
       normalizedStatus === EVENT_STATUS.CONFIRMED
     ) {
-      await ensureManagementTokenForBooking(bookingRecord);
+      bookingRecord = (await ensureManagementTokenForBooking(
+        bookingRecord
+      )) as BookingWithExtras;
     }
 
-    // Optionally send admin notification for admin-created events
-    if (sendAdminEmail) {
-      sendAdminNotificationEmail(bookingRecord, "EVENT").catch((err) => {
-        console.error("Admin notification email failed for admin-created event:", err);
-      });
+    // Notifications (non-blocking)
+    if (normalizedBookingType === "EVENT") {
+      if (normalizedStatus === EVENT_STATUS.CONFIRMED) {
+        sendCustomerEventConfirmation(bookingRecord).catch((err) => {
+          console.error("Customer event confirmation failed for admin-created event:", err);
+        });
+      }
+      if (sendAdminEmail) {
+        sendAdminEventNotification(bookingRecord).catch((err) => {
+          console.error("Admin notification email failed for admin-created event:", err);
+        });
+      }
     }
 
     return NextResponse.json(

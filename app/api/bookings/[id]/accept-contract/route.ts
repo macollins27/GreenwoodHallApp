@@ -65,7 +65,7 @@ export async function POST(
 
     // If contract already accepted, we allow updating the signer name
     // but keep the original contract text and version
-    const updatedBooking = await prisma.booking.update({
+    await prisma.booking.update({
       where: { id },
       data: {
         contractAccepted: true,
@@ -87,4 +87,3 @@ export async function POST(
     );
   }
 }
-

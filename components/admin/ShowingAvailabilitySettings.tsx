@@ -114,14 +114,14 @@ export default function ShowingAvailabilitySettings() {
     setAvailability(availability.filter((_, i) => i !== index));
   }
 
-  function updateTimeWindow(index: number, field: keyof TimeWindow, value: any) {
+  function updateTimeWindow(
+    index: number,
+    field: keyof TimeWindow,
+    value: string | number | boolean
+  ) {
     const updated = [...availability];
     updated[index] = { ...updated[index], [field]: value };
     setAvailability(updated);
-  }
-
-  function getDayLabel(dayOfWeek: number) {
-    return DAYS_OF_WEEK.find((d) => d.value === dayOfWeek)?.label || "";
   }
 
   const groupedByDay = DAYS_OF_WEEK.map((day) => ({

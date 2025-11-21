@@ -12,6 +12,10 @@ import {
   EVENT_STATUS,
 } from "@/lib/bookingStatus";
 import { ADMIN_COOKIE_NAME } from "@/lib/auth";
+import {
+  sendCustomerEventUpdated,
+  type BookingWithExtras,
+} from "@/lib/email";
 
 type RouteContext = {
   params: Promise<{
@@ -21,6 +25,30 @@ type RouteContext = {
 
 type EventStatusValue =
   (typeof EVENT_STATUS)[keyof typeof EVENT_STATUS];
+
+type AddOnPayload = {
+  addOnId?: unknown;
+  quantity?: unknown;
+};
+
+type EventUpdatePayload = {
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string | null;
+  eventType?: string;
+  guestCount?: unknown;
+  extraSetupHours?: unknown;
+  rectTablesRequested?: unknown;
+  roundTablesRequested?: unknown;
+  chairsRequested?: unknown;
+  setupNotes?: string | null;
+  status?: EventStatusValue;
+  notes?: string | null;
+  addOns?: AddOnPayload[];
+};
 
 const ALLOWED_EVENT_STATUSES = new Set([
   EVENT_STATUS.PENDING,
@@ -63,9 +91,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     );
   }
 
-  let body: any;
+  let body: EventUpdatePayload = {};
   try {
-    body = await request.json();
+    body = (await request.json()) as EventUpdatePayload;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON payload." },
@@ -219,7 +247,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   let addOnUpdate:
     | {
-        deleteMany: {};
+        deleteMany: Record<string, never>;
         create: {
           addOnId: string;
           quantity: number;
@@ -230,8 +258,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   if (Array.isArray(addOns)) {
     const sanitizedAddOns = addOns
-      .map((addon: any) => ({
-        addOnId: typeof addon?.addOnId === "string" ? addon.addOnId : null,
+      .map((addon) => ({
+        addOnId:
+          typeof addon?.addOnId === "string" ? addon.addOnId : null,
         quantity: parseInteger(addon?.quantity) ?? 0,
       }))
       .filter((addon) => addon.addOnId && addon.quantity > 0);
@@ -240,31 +269,35 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       const catalog = await prisma.addOn.findMany({
         where: {
           id: {
-            in: sanitizedAddOns.map((addon) => addon.addOnId!) as string[],
+            in: sanitizedAddOns
+              .map((addon) => addon.addOnId!)
+              .filter(Boolean),
           },
         },
       });
 
+      const creates: {
+        addOnId: string;
+        quantity: number;
+        priceAtBooking: number;
+      }[] = [];
+
       addOnUpdate = {
         deleteMany: {},
-        create: sanitizedAddOns
-          .map(({ addOnId, quantity }) => {
-            const fullAddOn = catalog.find((item) => item.id === addOnId);
-            if (!fullAddOn) {
-              return null;
-            }
-            return {
-              addOnId,
-              quantity,
-              priceAtBooking: fullAddOn.priceCents,
-            };
-          })
-          .filter(Boolean) as {
-          addOnId: string;
-          quantity: number;
-          priceAtBooking: number;
-        }[],
+        create: creates,
       };
+
+      sanitizedAddOns.forEach(({ addOnId, quantity }) => {
+        const fullAddOn = catalog.find((item) => item.id === addOnId);
+        if (!fullAddOn || !addOnId) {
+          return;
+        }
+        creates.push({
+          addOnId,
+          quantity,
+          priceAtBooking: fullAddOn.priceCents,
+        });
+      });
     } else {
       addOnUpdate = {
         deleteMany: {},
@@ -320,6 +353,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     },
   });
+
+  sendCustomerEventUpdated(updatedBooking as BookingWithExtras).catch((err) =>
+    console.error("Failed to send event updated email:", err)
+  );
 
   return NextResponse.json({
     success: true,

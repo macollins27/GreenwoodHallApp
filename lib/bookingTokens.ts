@@ -9,8 +9,7 @@ export function generateManagementToken(): string {
 export async function ensureManagementTokenForBooking(
   booking: Booking
 ): Promise<Booking> {
-  const existingToken = (booking as { managementToken?: string | null })
-    .managementToken;
+  const existingToken = booking.managementToken;
 
   if (existingToken) {
     return booking;
@@ -23,7 +22,7 @@ export async function ensureManagementTokenForBooking(
     data: {
       managementToken: token,
       managementTokenExpiresAt: null,
-    } as any,
+    },
   });
 
   return updated;

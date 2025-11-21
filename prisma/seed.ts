@@ -105,7 +105,7 @@ async function main() {
   };
 
   // EVENT 1: Upcoming wedding (14 days from now, Saturday)
-  const wedding = await prisma.booking.create({
+  await prisma.booking.create({
     data: {
       bookingType: "EVENT",
       eventDate: getDate(14),
@@ -156,7 +156,7 @@ async function main() {
   });
 
   // EVENT 2: Corporate meeting (7 days from now, weekday)
-  const corporate = await prisma.booking.create({
+  await prisma.booking.create({
     data: {
       bookingType: "EVENT",
       eventDate: getDate(7),
@@ -192,7 +192,7 @@ async function main() {
   });
 
   // EVENT 3: Birthday party (21 days from now, Saturday)
-  const birthday = await prisma.booking.create({
+  await prisma.booking.create({
     data: {
       bookingType: "EVENT",
       eventDate: getDate(21),

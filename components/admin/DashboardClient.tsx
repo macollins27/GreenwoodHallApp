@@ -89,12 +89,12 @@ export default function DashboardClient({
   // Sorting state
   const [sortColumn, setSortColumn] = useState<"date" | "type" | "status" | "created">("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  
+
   // Filtering state
   const [filterType, setFilterType] = useState<"all" | "events" | "showings">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | string>("all");
   const [filterDateRange, setFilterDateRange] = useState<"all-upcoming" | "today" | "this-week" | "next-7-days" | "this-month">("all-upcoming");
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => {
@@ -104,6 +104,25 @@ export default function DashboardClient({
     }
     return 15;
   });
+
+  const handleFilterTypeChange = (
+    value: "all" | "events" | "showings"
+  ) => {
+    setFilterType(value);
+    setCurrentPage(1);
+  };
+
+  const handleFilterStatusChange = (value: "all" | string) => {
+    setFilterStatus(value);
+    setCurrentPage(1);
+  };
+
+  const handleDateRangeChange = (
+    value: "all-upcoming" | "today" | "this-week" | "next-7-days" | "this-month"
+  ) => {
+    setFilterDateRange(value);
+    setCurrentPage(1);
+  };
   
   // Persist page size
   useEffect(() => {
@@ -190,12 +209,7 @@ export default function DashboardClient({
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
-  
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterType, filterStatus, filterDateRange, sortColumn, sortDirection]);
-  
+
   const handleSort = (column: "date" | "type" | "status" | "created") => {
     if (sortColumn === column) {
       // Toggle direction
@@ -204,6 +218,7 @@ export default function DashboardClient({
       setSortColumn(column);
       setSortDirection("asc");
     }
+    setCurrentPage(1);
   };
   
   const clearFilters = () => {
@@ -212,6 +227,7 @@ export default function DashboardClient({
     setFilterDateRange("all-upcoming");
     setSortColumn("date");
     setSortDirection("asc");
+    setCurrentPage(1);
   };
   
   const hasActiveFilters = filterType !== "all" || filterStatus !== "all" || filterDateRange !== "all-upcoming";
@@ -324,7 +340,9 @@ export default function DashboardClient({
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Type</label>
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+                onChange={(e) =>
+                  handleFilterTypeChange(e.target.value as typeof filterType)
+                }
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
               >
                 <option value="all">All Types</option>
@@ -337,7 +355,7 @@ export default function DashboardClient({
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</label>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => handleFilterStatusChange(e.target.value)}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
               >
                 <option value="all">All Statuses</option>
@@ -353,7 +371,11 @@ export default function DashboardClient({
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Date Range</label>
               <select
                 value={filterDateRange}
-                onChange={(e) => setFilterDateRange(e.target.value as typeof filterDateRange)}
+                onChange={(e) =>
+                  handleDateRangeChange(
+                    e.target.value as typeof filterDateRange
+                  )
+                }
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none"
               >
                 <option value="all-upcoming">All Upcoming</option>
@@ -627,4 +649,3 @@ export default function DashboardClient({
     </div>
   );
 }
-
